@@ -1,7 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { cache } from 'react'
 
-export async function createClient() {
+const createClientUncached = async () => {
   const cookieStore = await cookies()
 
   return createServerClient(
@@ -23,6 +24,9 @@ export async function createClient() {
     }
   )
 }
+
+// Cache por request — evita múltiplos clientes na mesma request (resolve lock conflict)
+export const createClient = cache(createClientUncached)
 
 export async function createServiceClient() {
   const cookieStore = await cookies()

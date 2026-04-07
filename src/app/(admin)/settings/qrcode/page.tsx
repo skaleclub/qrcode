@@ -1,33 +1,28 @@
 export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
+import { getEffectiveTenant } from '@/lib/get-effective-tenant'
 import QRCodeClient from './QRCodeClient'
 
 export default async function QRCodePage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('tenant_id, tenants(slug, name)')
-    .eq('id', user!.id)
-    .single()
+  const effective = await getEffectiveTenant()
+  const { tenantId, slug, name } = effective!
 
   const { data: qrcodes } = await supabase
     .from('qr_codes')
     .select('*')
-    .eq('tenant_id', profile!.tenant_id)
+    .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false })
 
-  const tenant = profile!.tenants as any
-  const menuUrl = `${process.env.NEXT_PUBLIC_APP_URL}/${tenant?.slug}`
+  const menuUrl = `${process.env.NEXT_PUBLIC_APP_URL}/${slug}`
 
   return (
     <QRCodeClient
       qrcodes={qrcodes ?? []}
-      tenantId={profile!.tenant_id}
+      tenantId={tenantId}
       menuUrl={menuUrl}
-      tenantName={tenant?.name ?? ''}
+      tenantName={name}
     />
   )
 }

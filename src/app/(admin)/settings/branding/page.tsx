@@ -1,29 +1,25 @@
 export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
+import { getEffectiveTenant } from '@/lib/get-effective-tenant'
 import BrandingClient from './BrandingClient'
 
 export default async function BrandingPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('tenant_id, tenants(slug)')
-    .eq('id', user!.id)
-    .single()
+  const effective = await getEffectiveTenant()
+  const { tenantId, slug } = effective!
 
   const { data: settings } = await supabase
     .from('tenant_settings')
     .select('*')
-    .eq('tenant_id', profile!.tenant_id)
+    .eq('tenant_id', tenantId)
     .single()
 
   return (
     <BrandingClient
       settings={settings}
-      tenantId={profile!.tenant_id}
-      tenantSlug={(profile!.tenants as any)?.slug ?? ''}
+      tenantId={tenantId}
+      tenantSlug={slug}
     />
   )
 }

@@ -1,18 +1,12 @@
 export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
+import { getEffectiveTenant } from '@/lib/get-effective-tenant'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('tenant_id')
-    .eq('id', user!.id)
-    .single()
-
-  const tenantId = profile?.tenant_id
+  const effective = await getEffectiveTenant()
+  const tenantId = effective?.tenantId
 
   const [
     { count: totalProducts },
