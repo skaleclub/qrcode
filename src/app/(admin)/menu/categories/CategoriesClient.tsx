@@ -51,7 +51,6 @@ export default function CategoriesClient({ categories: initial, tenantId }: Prop
     setDescription('')
     setShowForm(false)
     setLoading(false)
-    router.refresh()
   }
 
   async function toggleActive(id: string, current: boolean) {

@@ -124,7 +124,6 @@ export default function ProductsClient({ products: initial, categories, tenantId
 
     resetForm()
     setLoading(false)
-    router.refresh()
   }
 
   async function toggleAvailable(id: string, current: boolean) {
