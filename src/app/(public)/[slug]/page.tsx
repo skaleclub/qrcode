@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import MenuPage from '@/components/menu/MenuPage'
 import type { Metadata } from 'next'
 
@@ -11,7 +11,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const supabase = await createClient()
+  const supabase = await createServiceClient()
   const { data: tenant } = await supabase
     .from('tenants')
     .select('name, tenant_settings(logo_url)')
@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PublicMenuPage({ params }: Props) {
   const { slug } = await params
-  const supabase = await createClient()
+  const supabase = await createServiceClient()
 
   const { data: tenant } = await supabase
     .from('tenants')

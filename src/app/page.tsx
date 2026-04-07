@@ -1,48 +1,278 @@
-'use client'
+import Link from 'next/link'
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-
-export default function Home() {
-  const router = useRouter()
-
-  useEffect(() => {
-    const supabase = createClient()
-
-    async function redirect(userId: string | undefined) {
-      if (userId) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', userId)
-          .single()
-        router.replace(profile?.role === 'superadmin' ? '/tenants' : '/dashboard')
-      } else {
-        router.replace('/auth/login')
-      }
-    }
-
-    // Verifica sessão atual imediatamente
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      redirect(session?.user?.id)
-    })
-
-    // Também escuta mudanças (ex: magic link no hash da URL)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN') {
-        redirect(session?.user?.id)
-      }
-    })
-
-    return () => subscription.unsubscribe()
-  }, [router])
-
+export default function LandingPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-50">
-      <div className="text-center">
-        <p className="text-sm text-zinc-500">Carregando...</p>
-      </div>
+    <div className="min-h-screen bg-white text-zinc-900">
+
+      {/* Nav */}
+      <header className="fixed top-0 inset-x-0 z-50 bg-white/80 backdrop-blur border-b border-zinc-100">
+        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 13a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1v-3zM13 4a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1V4zM13 13a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-3z" />
+              </svg>
+            </div>
+            <span className="font-bold text-zinc-900">Skale QR Menu</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <a href="#como-funciona" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors hidden sm:block">Como funciona</a>
+            <a href="#planos" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors hidden sm:block">Planos</a>
+            <Link
+              href="/auth/login"
+              className="text-sm font-medium bg-zinc-900 text-white px-4 py-2 rounded-lg hover:bg-zinc-800 transition-colors"
+            >
+              Acessar painel
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <section className="pt-32 pb-24 px-6">
+        <div className="max-w-4xl mx-auto text-center">
+          <span className="inline-block text-xs font-semibold bg-zinc-100 text-zinc-600 px-3 py-1 rounded-full mb-6 tracking-wide uppercase">
+            Cardápio digital para restaurantes
+          </span>
+          <h1 className="text-5xl sm:text-6xl font-extrabold text-zinc-900 leading-tight mb-6">
+            Seu cardápio no celular<br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-pink-500">
+              com um QR Code
+            </span>
+          </h1>
+          <p className="text-lg text-zinc-500 max-w-xl mx-auto mb-10">
+            Crie seu cardápio digital em minutos, gere um QR Code e deixe seus clientes pedindo pelo WhatsApp. Sem app, sem complicação.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link
+              href="/auth/login"
+              className="w-full sm:w-auto bg-zinc-900 text-white px-8 py-3.5 rounded-xl text-sm font-semibold hover:bg-zinc-800 transition-colors shadow-lg"
+            >
+              Começar grátis
+            </Link>
+            <a
+              href="#como-funciona"
+              className="w-full sm:w-auto border border-zinc-200 text-zinc-700 px-8 py-3.5 rounded-xl text-sm font-semibold hover:bg-zinc-50 transition-colors"
+            >
+              Ver como funciona
+            </a>
+          </div>
+        </div>
+
+        {/* Mock do cardápio */}
+        <div className="max-w-xs mx-auto mt-16">
+          <div className="bg-zinc-900 rounded-3xl p-3 shadow-2xl">
+            <div className="bg-white rounded-2xl overflow-hidden">
+              {/* Header mock */}
+              <div className="bg-zinc-900 px-4 py-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-white/20" />
+                  <div>
+                    <div className="w-24 h-3 bg-white/80 rounded mb-1.5" />
+                    <div className="w-16 h-2 bg-white/40 rounded" />
+                  </div>
+                </div>
+                <div className="mt-3 bg-white/10 rounded-lg h-9" />
+              </div>
+              {/* Categorias mock */}
+              <div className="px-3 py-2 flex gap-2 border-b border-zinc-100">
+                {['Todos', 'Lanches', 'Bebidas'].map((c, i) => (
+                  <div key={c} className={`text-xs px-3 py-1 rounded-full font-medium ${i === 0 ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-500'}`}>{c}</div>
+                ))}
+              </div>
+              {/* Produtos mock */}
+              <div className="p-3 space-y-2">
+                {[
+                  { name: 'X-Burguer Clássico', price: 'R$ 22,90', highlight: true },
+                  { name: 'Batata Frita', price: 'R$ 18,90', highlight: false },
+                  { name: 'Milk Shake', price: 'R$ 19,90', highlight: false },
+                ].map(p => (
+                  <div key={p.name} className="flex items-center gap-2 bg-zinc-50 rounded-xl p-2">
+                    <div className="w-14 h-14 rounded-lg bg-zinc-200 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1 mb-1">
+                        <div className="text-xs font-semibold text-zinc-900 truncate">{p.name}</div>
+                        {p.highlight && <span className="text-xs bg-amber-100 text-amber-600 px-1 rounded">Destaque</span>}
+                      </div>
+                      <div className="text-xs text-zinc-400 mb-1">Descrição do item...</div>
+                      <div className="text-xs font-bold text-orange-500">{p.price}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Como funciona */}
+      <section id="como-funciona" className="py-24 px-6 bg-zinc-50">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl font-extrabold text-zinc-900 mb-3">Como funciona</h2>
+            <p className="text-zinc-500">Em 3 passos simples você já está no ar</p>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-8">
+            {[
+              {
+                step: '01',
+                icon: '📋',
+                title: 'Cadastre seu cardápio',
+                desc: 'Crie categorias e adicione seus produtos com fotos, descrições e preços no painel de controle.',
+              },
+              {
+                step: '02',
+                icon: '🎨',
+                title: 'Personalize o visual',
+                desc: 'Adicione seu logotipo, cores do restaurante e informações de contato para deixar com a sua cara.',
+              },
+              {
+                step: '03',
+                icon: '📱',
+                title: 'Gere e imprima o QR Code',
+                desc: 'Com um clique gere seu QR Code único. Coloque nas mesas e deixe seus clientes acessarem na hora.',
+              },
+            ].map(item => (
+              <div key={item.step} className="bg-white rounded-2xl p-7 border border-zinc-200">
+                <div className="text-3xl mb-4">{item.icon}</div>
+                <div className="text-xs font-bold text-zinc-400 mb-2 tracking-widest">PASSO {item.step}</div>
+                <h3 className="text-base font-bold text-zinc-900 mb-2">{item.title}</h3>
+                <p className="text-sm text-zinc-500 leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Funcionalidades */}
+      <section className="py-24 px-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl font-extrabold text-zinc-900 mb-3">Tudo que você precisa</h2>
+            <p className="text-zinc-500">Funcionalidades pensadas para restaurantes</p>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[
+              { icon: '🔗', title: 'Link único por restaurante', desc: 'Cada cliente tem seu próprio endereço de cardápio digital.' },
+              { icon: '📲', title: 'Pedido pelo WhatsApp', desc: 'O cliente clica no produto e já abre o WhatsApp pronto para pedir.' },
+              { icon: '🎨', title: 'Branding personalizado', desc: 'Logo, cores e identidade visual do seu restaurante.' },
+              { icon: '📊', title: 'Contagem de scans', desc: 'Veja quantas vezes seu QR Code foi escaneado.' },
+              { icon: '🔍', title: 'Busca no cardápio', desc: 'Clientes encontram qualquer produto em segundos.' },
+              { icon: '⚡', title: 'Sem instalar app', desc: 'Tudo abre direto no navegador do celular, sem fricção.' },
+            ].map(f => (
+              <div key={f.title} className="flex gap-4 p-5 rounded-2xl border border-zinc-100 hover:border-zinc-200 hover:bg-zinc-50 transition-colors">
+                <div className="text-2xl flex-shrink-0">{f.icon}</div>
+                <div>
+                  <h4 className="text-sm font-semibold text-zinc-900 mb-1">{f.title}</h4>
+                  <p className="text-sm text-zinc-500">{f.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Planos */}
+      <section id="planos" className="py-24 px-6 bg-zinc-50">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl font-extrabold text-zinc-900 mb-3">Planos simples</h2>
+            <p className="text-zinc-500">Comece grátis, escale quando precisar</p>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-6">
+            {[
+              {
+                name: 'Free',
+                price: 'R$ 0',
+                period: '/mês',
+                desc: 'Para começar',
+                features: ['Cardápio digital', 'QR Code gerado', 'Até 20 produtos', 'Branding básico'],
+                cta: 'Começar grátis',
+                highlight: false,
+              },
+              {
+                name: 'Pro',
+                price: 'R$ 49',
+                period: '/mês',
+                desc: 'Para crescer',
+                features: ['Tudo do Free', 'Produtos ilimitados', 'Branding completo', 'Analytics de scans', 'Suporte prioritário'],
+                cta: 'Assinar Pro',
+                highlight: true,
+              },
+              {
+                name: 'Enterprise',
+                price: 'R$ 149',
+                period: '/mês',
+                desc: 'Para redes',
+                features: ['Tudo do Pro', 'Múltiplas unidades', 'Domínio próprio', 'Onboarding dedicado', 'SLA garantido'],
+                cta: 'Falar com vendas',
+                highlight: false,
+              },
+            ].map(plan => (
+              <div
+                key={plan.name}
+                className={`rounded-2xl p-7 border ${plan.highlight ? 'bg-zinc-900 border-zinc-900 text-white shadow-xl scale-105' : 'bg-white border-zinc-200'}`}
+              >
+                <div className={`text-xs font-bold uppercase tracking-widest mb-2 ${plan.highlight ? 'text-zinc-400' : 'text-zinc-400'}`}>{plan.name}</div>
+                <div className="flex items-end gap-1 mb-1">
+                  <span className={`text-3xl font-extrabold ${plan.highlight ? 'text-white' : 'text-zinc-900'}`}>{plan.price}</span>
+                  <span className={`text-sm mb-1 ${plan.highlight ? 'text-zinc-400' : 'text-zinc-400'}`}>{plan.period}</span>
+                </div>
+                <p className={`text-sm mb-6 ${plan.highlight ? 'text-zinc-400' : 'text-zinc-500'}`}>{plan.desc}</p>
+                <ul className="space-y-2 mb-7">
+                  {plan.features.map(f => (
+                    <li key={f} className={`flex items-center gap-2 text-sm ${plan.highlight ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                      <span className={`text-base ${plan.highlight ? 'text-green-400' : 'text-green-500'}`}>✓</span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/auth/login"
+                  className={`block text-center py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                    plan.highlight
+                      ? 'bg-white text-zinc-900 hover:bg-zinc-100'
+                      : 'bg-zinc-900 text-white hover:bg-zinc-800'
+                  }`}
+                >
+                  {plan.cta}
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA final */}
+      <section className="py-24 px-6">
+        <div className="max-w-2xl mx-auto text-center">
+          <h2 className="text-4xl font-extrabold text-zinc-900 mb-4">
+            Pronto para digitalizar<br />seu cardápio?
+          </h2>
+          <p className="text-zinc-500 mb-8">Crie sua conta agora e tenha seu QR Code em menos de 5 minutos.</p>
+          <Link
+            href="/auth/login"
+            className="inline-block bg-zinc-900 text-white px-10 py-4 rounded-xl text-sm font-semibold hover:bg-zinc-800 transition-colors shadow-lg"
+          >
+            Criar conta grátis
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-zinc-100 py-8 px-6">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded bg-zinc-900 flex items-center justify-center">
+              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 13a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1v-3zM13 4a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1V4zM13 13a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-3z" />
+              </svg>
+            </div>
+            <span className="text-sm font-semibold text-zinc-700">Skale QR Menu</span>
+          </div>
+          <p className="text-xs text-zinc-400">© {new Date().getFullYear()} Skale Club. Todos os direitos reservados.</p>
+        </div>
+      </footer>
     </div>
   )
 }

@@ -21,7 +21,11 @@ export default async function AdminLayout({
     .eq('id', user.id)
     .single()
 
-  if (!profile) redirect('/auth/login')
+  if (!profile) {
+    // Evita loop infinito: faz logout antes de redirecionar
+    await supabase.auth.signOut()
+    redirect('/auth/login')
+  }
 
   // Superadmin pode acessar o painel de qualquer tenant via cookie
   if (profile.role === 'superadmin') {
