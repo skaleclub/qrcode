@@ -58,19 +58,19 @@ export default function SettingsClient({ settings }: Props) {
   function updateStep(i: number, key: string, val: string) {
     const steps = [...howItWorks.steps]
     steps[i] = { ...steps[i], [key]: val }
-    setHowItWorks(h => ({ ...h, steps }))
+    setHowItWorks({ ...howItWorks, steps })
   }
 
   function updateFeature(i: number, key: string, val: string) {
     const items = [...features.items]
     items[i] = { ...items[i], [key]: val }
-    setFeatures(f => ({ ...f, items }))
+    setFeatures({ ...features, items })
   }
 
   function updatePlan(i: number, key: string, val: any) {
     const plans = [...pricing.plans]
     plans[i] = { ...plans[i], [key]: val }
-    setPricing(p => ({ ...p, plans }))
+    setPricing({ ...pricing, plans })
   }
 
   const input = 'w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900'
