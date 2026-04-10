@@ -5,26 +5,31 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { formatPrice } from '@/lib/utils'
 import type { Product, Category } from '@/types/database'
+import ConfirmDialog from '@/components/ui/ConfirmDialog'
 
 interface ProductWithCategory extends Product {
   category: { id: string; name: string } | null
 }
 
+const DEFAULT_TAGS = ['Vegetariano', 'Vegano', 'Sem Glúten', 'Picante', 'Destaque do chef']
+
 interface Props {
   products: ProductWithCategory[]
   categories: Pick<Category, 'id' | 'name'>[]
   tenantId: string
+  availableTags?: string[]
 }
 
-const TAGS = ['Vegetariano', 'Vegano', 'Sem Glúten', 'Picante', 'Destaque do chef']
-
-export default function ProductsClient({ products: initial, categories, tenantId }: Props) {
+export default function ProductsClient({ products: initial, categories, tenantId, availableTags }: Props) {
+  const TAGS = availableTags?.length ? availableTags : DEFAULT_TAGS
   const [products, setProducts] = useState(initial)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
   const [filterCategory, setFilterCategory] = useState<string>('all')
+  const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
 
   const [form, setForm] = useState({
     name: '',
@@ -110,7 +115,7 @@ export default function ProductsClient({ products: initial, categories, tenantId
         .eq('id', editingId)
         .select('*, category:categories(id, name)')
         .single()
-      if (error) { alert('Erro ao salvar: ' + error.message); setLoading(false); return }
+      if (error) { setFormError(error.message); setLoading(false); return }
       if (data) setProducts(products.map(p => p.id === editingId ? data : p))
     } else {
       const { data, error } = await supabase
@@ -118,7 +123,7 @@ export default function ProductsClient({ products: initial, categories, tenantId
         .insert(payload)
         .select('*, category:categories(id, name)')
         .single()
-      if (error) { alert('Erro ao salvar: ' + error.message); setLoading(false); return }
+      if (error) { setFormError(error.message); setLoading(false); return }
       if (data) setProducts([...products, data])
     }
 
@@ -131,10 +136,11 @@ export default function ProductsClient({ products: initial, categories, tenantId
     setProducts(products.map(p => p.id === id ? { ...p, is_available: !current } : p))
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('Excluir este produto?')) return
-    await supabase.from('products').delete().eq('id', id)
-    setProducts(products.filter(p => p.id !== id))
+  async function confirmDelete() {
+    if (!confirmId) return
+    await supabase.from('products').delete().eq('id', confirmId)
+    setProducts(products.filter(p => p.id !== confirmId))
+    setConfirmId(null)
   }
 
   function toggleTag(tag: string) {
@@ -146,6 +152,13 @@ export default function ProductsClient({ products: initial, categories, tenantId
 
   return (
     <div className="p-8">
+      <ConfirmDialog
+        open={!!confirmId}
+        title="Excluir produto"
+        message="Excluir este produto? Esta ação é irreversível."
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmId(null)}
+      />
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">Produtos</h1>
@@ -287,6 +300,9 @@ export default function ProductsClient({ products: initial, categories, tenantId
               <span className="text-sm text-zinc-700">Produto em destaque</span>
             </label>
 
+            {formError && (
+              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{formError}</p>
+            )}
             <div className="flex gap-3 pt-2">
               <button
                 type="submit"
@@ -361,7 +377,7 @@ export default function ProductsClient({ products: initial, categories, tenantId
                   Editar
                 </button>
                 <button
-                  onClick={() => handleDelete(product.id)}
+                  onClick={() => setConfirmId(product.id)}
                   className="text-xs px-3 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
                 >
                   Excluir

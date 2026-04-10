@@ -9,7 +9,7 @@ export default async function ProductsPage() {
   const effective = await getEffectiveTenant()
   const tenantId = effective!.tenantId
 
-  const [{ data: products }, { data: categories }] = await Promise.all([
+  const [{ data: products }, { data: categories }, { data: settings }] = await Promise.all([
     supabase
       .from('products')
       .select('*, category:categories(id, name)')
@@ -21,6 +21,11 @@ export default async function ProductsPage() {
       .eq('tenant_id', tenantId)
       .eq('is_active', true)
       .order('position'),
+    supabase
+      .from('tenant_settings')
+      .select('custom_tags')
+      .eq('tenant_id', tenantId)
+      .single(),
   ])
 
   return (
@@ -28,6 +33,7 @@ export default async function ProductsPage() {
       products={products ?? []}
       categories={categories ?? []}
       tenantId={tenantId}
+      availableTags={settings?.custom_tags ?? undefined}
     />
   )
 }

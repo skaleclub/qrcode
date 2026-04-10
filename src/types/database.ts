@@ -23,6 +23,7 @@ export interface TenantSettings {
   instagram: string | null
   whatsapp: string | null
   business_hours: BusinessHours | null
+  custom_tags: string[] | null
   updated_at: string
 }
 

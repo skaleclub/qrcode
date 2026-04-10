@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { formatPrice } from '@/lib/utils'
 import type { Category, Product, TenantWithSettings } from '@/types/database'
 
@@ -8,9 +8,15 @@ interface Props {
   tenant: TenantWithSettings
   categories: Category[]
   products: Product[]
+  footerBrand?: string
 }
 
-export default function MenuPage({ tenant, categories, products }: Props) {
+const DAYS: Record<string, string> = {
+  mon: 'Segunda', tue: 'Terça', wed: 'Quarta',
+  thu: 'Quinta', fri: 'Sexta', sat: 'Sábado', sun: 'Domingo',
+}
+
+export default function MenuPage({ tenant, categories, products, footerBrand = 'Xmartmenu' }: Props) {
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
@@ -43,29 +49,25 @@ export default function MenuPage({ tenant, categories, products }: Props) {
     window.open(`https://wa.me/${whatsapp}?text=${msg}`, '_blank')
   }
 
+  const hours = settings?.business_hours
+  const hasHours = hours && Object.values(hours).some(Boolean)
+  const hasContact = settings?.phone || settings?.instagram || settings?.whatsapp || settings?.address
+
   return (
     <div className="min-h-screen bg-zinc-50">
-      {/* Header com branding */}
+      {/* Header */}
       <header style={{ backgroundColor: primaryColor }} className="text-white">
         <div className="max-w-2xl mx-auto px-4 py-6 flex items-center gap-4">
           {settings?.logo_url ? (
-            <img
-              src={settings.logo_url}
-              alt={tenant.name}
-              className="w-14 h-14 rounded-xl object-contain bg-white/10 p-1"
-            />
+            <img src={settings.logo_url} alt={tenant.name} className="w-14 h-14 rounded-xl object-contain bg-white/10 p-1" />
           ) : (
             <div className="w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center text-3xl">🏪</div>
           )}
           <div>
             <h1 className="text-xl font-bold">{tenant.name}</h1>
-            {settings?.address && (
-              <p className="text-sm opacity-75 mt-0.5">{settings.address}</p>
-            )}
+            {settings?.address && <p className="text-sm opacity-75 mt-0.5">{settings.address}</p>}
           </div>
         </div>
-
-        {/* Busca */}
         <div className="max-w-2xl mx-auto px-4 pb-4">
           <input
             type="search"
@@ -77,6 +79,13 @@ export default function MenuPage({ tenant, categories, products }: Props) {
         </div>
       </header>
 
+      {/* Banner */}
+      {settings?.banner_url && (
+        <div className="max-w-2xl mx-auto px-4 pt-4">
+          <img src={settings.banner_url} alt="Banner" className="w-full rounded-xl object-cover max-h-48" />
+        </div>
+      )}
+
       {/* Filtro de categorias */}
       {categories.length > 0 && (
         <div className="sticky top-0 z-10 bg-white border-b border-zinc-200 shadow-sm">
@@ -85,9 +94,7 @@ export default function MenuPage({ tenant, categories, products }: Props) {
               <button
                 onClick={() => setActiveCategory(null)}
                 style={!activeCategory ? { backgroundColor: primaryColor, color: '#fff' } : {}}
-                className={`flex-shrink-0 text-sm px-4 py-1.5 rounded-full font-medium transition-colors ${
-                  !activeCategory ? '' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
-                }`}
+                className={`flex-shrink-0 text-sm px-4 py-1.5 rounded-full font-medium transition-colors ${!activeCategory ? '' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'}`}
               >
                 Todos
               </button>
@@ -96,9 +103,7 @@ export default function MenuPage({ tenant, categories, products }: Props) {
                   key={cat.id}
                   onClick={() => setActiveCategory(cat.id === activeCategory ? null : cat.id)}
                   style={activeCategory === cat.id ? { backgroundColor: primaryColor, color: '#fff' } : {}}
-                  className={`flex-shrink-0 text-sm px-4 py-1.5 rounded-full font-medium transition-colors ${
-                    activeCategory === cat.id ? '' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
-                  }`}
+                  className={`flex-shrink-0 text-sm px-4 py-1.5 rounded-full font-medium transition-colors ${activeCategory === cat.id ? '' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'}`}
                 >
                   {cat.name}
                 </button>
@@ -115,21 +120,14 @@ export default function MenuPage({ tenant, categories, products }: Props) {
             <h2 className="text-base font-bold text-zinc-900 mb-3">⭐ Destaques</h2>
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
               {featured.map(p => (
-                <button
-                  key={p.id}
-                  onClick={() => setSelectedProduct(p)}
-                  className="flex-shrink-0 w-40 bg-white rounded-xl border border-zinc-200 overflow-hidden text-left hover:shadow-md transition-shadow"
-                >
-                  {p.image_url ? (
-                    <img src={p.image_url} alt={p.name} className="w-full h-24 object-cover" />
-                  ) : (
-                    <div className="w-full h-24 bg-zinc-100 flex items-center justify-center text-3xl">🍽️</div>
-                  )}
+                <button key={p.id} onClick={() => setSelectedProduct(p)}
+                  className="flex-shrink-0 w-40 bg-white rounded-xl border border-zinc-200 overflow-hidden text-left hover:shadow-md transition-shadow">
+                  {p.image_url
+                    ? <img src={p.image_url} alt={p.name} className="w-full h-24 object-cover" />
+                    : <div className="w-full h-24 bg-zinc-100 flex items-center justify-center text-3xl">🍽️</div>}
                   <div className="p-2">
                     <p className="text-xs font-semibold text-zinc-900 truncate">{p.name}</p>
-                    <p style={{ color: accentColor }} className="text-sm font-bold mt-0.5">
-                      {formatPrice(p.price)}
-                    </p>
+                    <p style={{ color: accentColor }} className="text-sm font-bold mt-0.5">{formatPrice(p.price)}</p>
                   </div>
                 </button>
               ))}
@@ -137,7 +135,6 @@ export default function MenuPage({ tenant, categories, products }: Props) {
           </section>
         )}
 
-        {/* Sem resultados */}
         {filtered.length === 0 && (
           <div className="text-center py-16 text-zinc-400">
             <p className="text-4xl mb-3">🔍</p>
@@ -146,48 +143,84 @@ export default function MenuPage({ tenant, categories, products }: Props) {
           </div>
         )}
 
-        {/* Grupos por categoria */}
         {groupedByCategory.map(({ category, items }) => (
           <section key={category.id}>
             <h2 className="text-base font-bold text-zinc-900 mb-3">{category.name}</h2>
             <div className="space-y-2">
               {items.map(p => (
-                <ProductCard
-                  key={p.id}
-                  product={p}
-                  accentColor={accentColor}
-                  onClick={() => setSelectedProduct(p)}
-                />
+                <ProductCard key={p.id} product={p} accentColor={accentColor} onClick={() => setSelectedProduct(p)} />
               ))}
             </div>
           </section>
         ))}
 
-        {/* Sem categoria */}
         {uncategorized.length > 0 && (
           <section>
             <h2 className="text-base font-bold text-zinc-900 mb-3">Outros</h2>
             <div className="space-y-2">
               {uncategorized.map(p => (
-                <ProductCard
-                  key={p.id}
-                  product={p}
-                  accentColor={accentColor}
-                  onClick={() => setSelectedProduct(p)}
-                />
+                <ProductCard key={p.id} product={p} accentColor={accentColor} onClick={() => setSelectedProduct(p)} />
               ))}
             </div>
           </section>
         )}
 
-        {/* Rodapé */}
-        <footer className="pt-6 pb-10 text-center">
+        {/* Horários de funcionamento */}
+        {hasHours && (
+          <section className="bg-white rounded-xl border border-zinc-200 p-5">
+            <h2 className="text-sm font-bold text-zinc-900 mb-3">Horário de funcionamento</h2>
+            <div className="space-y-1.5">
+              {Object.entries(DAYS).map(([key, label]) => {
+                const value = hours?.[key as keyof typeof hours]
+                if (!value) return null
+                return (
+                  <div key={key} className="flex justify-between text-sm">
+                    <span className="text-zinc-500">{label}</span>
+                    <span className="text-zinc-900 font-medium">{value}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Contato */}
+        {hasContact && (
+          <section className="bg-white rounded-xl border border-zinc-200 p-5">
+            <h2 className="text-sm font-bold text-zinc-900 mb-3">Contato</h2>
+            <div className="space-y-2">
+              {settings?.phone && (
+                <a href={`tel:${settings.phone}`} className="flex items-center gap-3 text-sm text-zinc-700 hover:text-zinc-900">
+                  <span className="text-base">📞</span> {settings.phone}
+                </a>
+              )}
+              {settings?.whatsapp && (
+                <a href={`https://wa.me/${settings.whatsapp}`} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-3 text-sm text-zinc-700 hover:text-zinc-900">
+                  <span className="text-base">💬</span> WhatsApp
+                </a>
+              )}
+              {settings?.instagram && (
+                <a href={`https://instagram.com/${settings.instagram}`} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-3 text-sm text-zinc-700 hover:text-zinc-900">
+                  <span className="text-base">📸</span> @{settings.instagram}
+                </a>
+              )}
+              {settings?.address && (
+                <div className="flex items-start gap-3 text-sm text-zinc-700">
+                  <span className="text-base">📍</span> {settings.address}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        <footer className="pt-2 pb-10 text-center">
           <p className="text-xs text-zinc-400">Cardápio digital por</p>
-          <p className="text-xs font-semibold text-zinc-500">Skale QR Menu</p>
+          <p className="text-xs font-semibold text-zinc-500">{footerBrand}</p>
         </footer>
       </div>
 
-      {/* Modal do produto */}
       {selectedProduct && (
         <ProductModal
           product={selectedProduct}
@@ -201,114 +234,58 @@ export default function MenuPage({ tenant, categories, products }: Props) {
   )
 }
 
-function ProductCard({
-  product,
-  accentColor,
-  onClick,
-}: {
-  product: Product
-  accentColor: string
-  onClick: () => void
-}) {
+function ProductCard({ product, accentColor, onClick }: { product: Product; accentColor: string; onClick: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      className="w-full bg-white rounded-xl border border-zinc-200 p-3 flex gap-3 text-left hover:shadow-sm transition-shadow"
-    >
+    <button onClick={onClick}
+      className="w-full bg-white rounded-xl border border-zinc-200 p-3 flex gap-3 text-left hover:shadow-sm transition-shadow">
       <div className="flex-1 min-w-0">
         <div className="flex items-start gap-2 flex-wrap">
           <p className="text-sm font-semibold text-zinc-900">{product.name}</p>
-          {product.is_featured && (
-            <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">Destaque</span>
-          )}
+          {product.is_featured && <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">Destaque</span>}
         </div>
         {product.tags?.length > 0 && (
           <div className="flex gap-1 mt-1 flex-wrap">
-            {product.tags.map(tag => (
-              <span key={tag} className="text-xs bg-zinc-100 text-zinc-500 px-1.5 py-0.5 rounded">{tag}</span>
-            ))}
+            {product.tags.map(tag => <span key={tag} className="text-xs bg-zinc-100 text-zinc-500 px-1.5 py-0.5 rounded">{tag}</span>)}
           </div>
         )}
-        {product.description && (
-          <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{product.description}</p>
-        )}
+        {product.description && <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{product.description}</p>}
         <div className="flex items-center gap-2 mt-2">
-          {product.original_price && (
-            <span className="text-xs text-zinc-400 line-through">{formatPrice(product.original_price)}</span>
-          )}
+          {product.original_price && <span className="text-xs text-zinc-400 line-through">{formatPrice(product.original_price)}</span>}
           <span style={{ color: accentColor }} className="text-sm font-bold">{formatPrice(product.price)}</span>
         </div>
       </div>
       {product.image_url && (
-        <img
-          src={product.image_url}
-          alt={product.name}
-          className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
-        />
+        <img src={product.image_url} alt={product.name} className="w-20 h-20 rounded-lg object-cover flex-shrink-0" />
       )}
     </button>
   )
 }
 
-function ProductModal({
-  product,
-  accentColor,
-  whatsapp,
-  onClose,
-  onWhatsApp,
-}: {
-  product: Product
-  accentColor: string
-  whatsapp?: string | null
-  onClose: () => void
-  onWhatsApp: () => void
+function ProductModal({ product, accentColor, whatsapp, onClose, onWhatsApp }: {
+  product: Product; accentColor: string; whatsapp?: string | null; onClose: () => void; onWhatsApp: () => void
 }) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl overflow-hidden"
-        onClick={e => e.stopPropagation()}
-      >
-        {product.image_url && (
-          <img
-            src={product.image_url}
-            alt={product.name}
-            className="w-full h-56 object-cover"
-          />
-        )}
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4" onClick={onClose}>
+      <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        {product.image_url && <img src={product.image_url} alt={product.name} className="w-full h-56 object-cover" />}
         <div className="p-5">
           <div className="flex items-start justify-between gap-2 mb-2">
             <h3 className="text-lg font-bold text-zinc-900">{product.name}</h3>
             <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 text-xl leading-none flex-shrink-0">✕</button>
           </div>
-
           {product.tags?.length > 0 && (
             <div className="flex gap-1.5 mb-3 flex-wrap">
-              {product.tags.map(tag => (
-                <span key={tag} className="text-xs bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full">{tag}</span>
-              ))}
+              {product.tags.map(tag => <span key={tag} className="text-xs bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full">{tag}</span>)}
             </div>
           )}
-
-          {product.description && (
-            <p className="text-sm text-zinc-600 mb-4 leading-relaxed">{product.description}</p>
-          )}
-
+          {product.description && <p className="text-sm text-zinc-600 mb-4 leading-relaxed">{product.description}</p>}
           <div className="flex items-center justify-between">
             <div>
-              {product.original_price && (
-                <p className="text-sm text-zinc-400 line-through">{formatPrice(product.original_price)}</p>
-              )}
+              {product.original_price && <p className="text-sm text-zinc-400 line-through">{formatPrice(product.original_price)}</p>}
               <p style={{ color: accentColor }} className="text-2xl font-bold">{formatPrice(product.price)}</p>
             </div>
             {whatsapp && (
-              <button
-                onClick={onWhatsApp}
-                className="bg-green-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-green-600 transition-colors"
-              >
+              <button onClick={onWhatsApp} className="bg-green-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-green-600 transition-colors">
                 Pedir pelo WhatsApp
               </button>
             )}

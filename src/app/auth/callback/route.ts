@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
@@ -9,18 +9,34 @@ export async function GET(request: Request) {
     const supabase = await createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      // Verifica role para redirecionar corretamente
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const { data: profile } = await supabase
+        const service = await createServiceClient()
+        const { data: profile } = await service
           .from('profiles')
-          .select('role')
+          .select('role, tenant_id')
           .eq('id', user.id)
           .single()
 
         if (profile?.role === 'superadmin') {
-          return NextResponse.redirect(`${origin}/tenants`)
+          return NextResponse.redirect(`${origin}/overview`)
         }
+
+        // Garante que o profile existe e tem role='admin'
+        if (!profile || !['superadmin', 'admin'].includes(profile.role)) {
+          await service.from('profiles').upsert({
+            id: user.id,
+            role: 'admin',
+            full_name: user.user_metadata?.full_name ?? null,
+          }, { onConflict: 'id' })
+          return NextResponse.redirect(`${origin}/onboarding`)
+        }
+
+        // Usuário com role correto mas sem tenant → onboarding
+        if (!profile.tenant_id) {
+          return NextResponse.redirect(`${origin}/onboarding`)
+        }
+
         return NextResponse.redirect(`${origin}/dashboard`)
       }
     }

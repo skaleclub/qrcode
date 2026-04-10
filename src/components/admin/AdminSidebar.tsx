@@ -15,7 +15,7 @@ const navItems = [
   { href: '/settings/password', label: 'Alterar senha', icon: '🔑' },
 ]
 
-export default function AdminSidebar({ tenantName }: { tenantName: string }) {
+export default function AdminSidebar({ tenantName, tenantSlug, appName = 'Xmartmenu' }: { tenantName: string; tenantSlug?: string; appName?: string }) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -28,7 +28,7 @@ export default function AdminSidebar({ tenantName }: { tenantName: string }) {
   return (
     <aside className="w-60 flex-shrink-0 bg-white border-r border-zinc-200 flex flex-col">
       <div className="p-5 border-b border-zinc-200">
-        <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">Skale QR Menu</p>
+        <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">{appName}</p>
         <p className="text-sm font-semibold text-zinc-900 truncate">{tenantName}</p>
       </div>
 
@@ -50,13 +50,16 @@ export default function AdminSidebar({ tenantName }: { tenantName: string }) {
         ))}
       </nav>
 
-      <div className="p-3 border-t border-zinc-200">
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-zinc-600 hover:bg-zinc-100 transition-colors"
-        >
-          <span>🚪</span>
-          Sair
+      <div className="p-3 border-t border-zinc-200 space-y-1">
+        {tenantSlug && (
+          <a href={`/${tenantSlug}`} target="_blank" rel="noopener noreferrer"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-zinc-600 hover:bg-zinc-100 transition-colors">
+            <span>🔗</span> Ver cardápio
+          </a>
+        )}
+        <button onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-zinc-600 hover:bg-zinc-100 transition-colors">
+          <span>🚪</span> Sair
         </button>
       </div>
     </aside>

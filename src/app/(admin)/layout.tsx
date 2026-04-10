@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import AdminSidebar from '@/components/admin/AdminSidebar'
 
 export default async function AdminLayout({
@@ -10,6 +10,10 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
+  const service = await createServiceClient()
+  const { data: platformSettings } = await service.from('platform_settings').select('app_name').single()
+  const appName = platformSettings?.app_name ?? 'Xmartmenu'
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -32,7 +36,7 @@ export default async function AdminLayout({
     const cookieStore = await cookies()
     const previewTenantId = cookieStore.get('preview_tenant_id')?.value
 
-    if (!previewTenantId) redirect('/tenants')
+    if (!previewTenantId) redirect('/overview')
 
     const { data: tenant } = await supabase
       .from('tenants')
@@ -50,7 +54,7 @@ export default async function AdminLayout({
             <a href="/api/admin/exit-preview" className="ml-2 underline">Sair</a>
           </div>
           <div className="flex-1">
-            <AdminSidebar tenantName={tenant.name} />
+            <AdminSidebar tenantName={tenant.name} tenantSlug={tenant.slug} appName={appName} />
           </div>
         </div>
         <main className="flex-1 overflow-y-auto">{children}</main>
@@ -60,7 +64,7 @@ export default async function AdminLayout({
 
   return (
     <div className="flex h-screen bg-zinc-50">
-      <AdminSidebar tenantName={profile.tenants?.name ?? 'Meu Restaurante'} />
+      <AdminSidebar tenantName={profile.tenants?.name ?? 'Meu Restaurante'} tenantSlug={(profile.tenants as any)?.slug} />
       <main className="flex-1 overflow-y-auto">
         {children}
       </main>

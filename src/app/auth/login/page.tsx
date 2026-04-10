@@ -62,7 +62,7 @@ export default function LoginPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 13a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1H4a1 1 0 01-1-1v-3zM13 4a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1V4zM13 13a1 1 0 011-1h3a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-3z" />
               </svg>
             </div>
-            <h1 className="text-xl font-bold text-zinc-900">Skale QR Menu</h1>
+            <h1 className="text-xl font-bold text-zinc-900">Xmartmenu</h1>
             <p className="text-sm text-zinc-500 mt-1">Acesse seu painel de cardápio</p>
           </div>
 
@@ -137,7 +137,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-xs text-zinc-400 text-center mt-4">
-          Skale Club © {new Date().getFullYear()}
+          Xmartmenu © {new Date().getFullYear()}
         </p>
       </div>
     </div>

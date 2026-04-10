@@ -1,0 +1,26 @@
+name: Supabase Keepalive
+
+# Supabase free tier pausa projetos após 1 semana sem atividade.
+# Este workflow faz uma query leve a cada 3 dias para manter o projeto ativo.
+
+on:
+  schedule:
+    - cron: '0 10 */3 * *'   # a cada 3 dias às 10h UTC
+  workflow_dispatch:          # permite rodar manualmente
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/tenants?select=id&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
+          echo "HTTP status: $response"
+          if [ "$response" != "200" ] && [ "$response" != "406" ]; then
+            echo "Unexpected response: $response"
+            exit 1
+          fi
+          echo "Supabase is alive."

@@ -47,6 +47,9 @@ export async function DELETE(
     }
   }
 
+  // Deleta scan_events (sem ON DELETE CASCADE no banco)
+  await service.from('scan_events').delete().eq('tenant_id', id)
+
   // Deleta tenant (cascade deleta categorias, produtos, etc.)
   const { error } = await service.from('tenants').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

@@ -18,7 +18,7 @@ export default async function DashboardPage() {
     supabase.from('scan_events')
       .select('*', { count: 'exact', head: true })
       .eq('tenant_id', tenantId)
-      .gte('scanned_at', new Date().toISOString().split('T')[0]),
+      .gte('scanned_at', `${new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0]}T03:00:00.000Z`),
   ])
 
   const stats = [

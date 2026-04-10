@@ -1,9 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
 import type { Category } from '@/types/database'
+import ConfirmDialog from '@/components/ui/ConfirmDialog'
 
 interface Props {
   categories: Category[]
@@ -17,34 +16,33 @@ export default function CategoriesClient({ categories: initial, tenantId }: Prop
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
-  const supabase = createClient()
-  const router = useRouter()
+  const [error, setError] = useState<string | null>(null)
+  const [confirmId, setConfirmId] = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+    setError(null)
 
     if (editingId) {
-      const { data } = await supabase
-        .from('categories')
-        .update({ name, description })
-        .eq('id', editingId)
-        .select()
-        .single()
-
-      if (data) {
-        setCategories(categories.map(c => c.id === editingId ? data : c))
-      }
+      const res = await fetch(`/api/admin/categories/${editingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, description }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error); setLoading(false); return }
+      setCategories(categories.map(c => c.id === editingId ? data : c))
       setEditingId(null)
     } else {
-      const position = categories.length
-      const { data } = await supabase
-        .from('categories')
-        .insert({ tenant_id: tenantId, name, description, position })
-        .select()
-        .single()
-
-      if (data) setCategories([...categories, data])
+      const res = await fetch('/api/admin/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, description, position: categories.length }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error); setLoading(false); return }
+      setCategories([...categories, data])
     }
 
     setName('')
@@ -54,14 +52,24 @@ export default function CategoriesClient({ categories: initial, tenantId }: Prop
   }
 
   async function toggleActive(id: string, current: boolean) {
-    await supabase.from('categories').update({ is_active: !current }).eq('id', id)
-    setCategories(categories.map(c => c.id === id ? { ...c, is_active: !current } : c))
+    const res = await fetch(`/api/admin/categories/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: !current }),
+    })
+    if (res.ok) setCategories(categories.map(c => c.id === id ? { ...c, is_active: !current } : c))
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('Excluir esta categoria? Os produtos não serão deletados.')) return
-    await supabase.from('categories').delete().eq('id', id)
-    setCategories(categories.filter(c => c.id !== id))
+  async function confirmDelete() {
+    if (!confirmId) return
+    const res = await fetch(`/api/admin/categories/${confirmId}`, { method: 'DELETE' })
+    if (res.ok) {
+      setCategories(categories.filter(c => c.id !== confirmId))
+    } else {
+      const data = await res.json()
+      setError(data.error)
+    }
+    setConfirmId(null)
   }
 
   function startEdit(cat: Category) {
@@ -76,10 +84,19 @@ export default function CategoriesClient({ categories: initial, tenantId }: Prop
     setEditingId(null)
     setName('')
     setDescription('')
+    setError(null)
   }
 
   return (
     <div className="p-8">
+      <ConfirmDialog
+        open={!!confirmId}
+        title="Excluir categoria"
+        message="Excluir esta categoria? Os produtos não serão deletados."
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmId(null)}
+      />
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">Categorias</h1>
@@ -92,6 +109,13 @@ export default function CategoriesClient({ categories: initial, tenantId }: Prop
           + Nova categoria
         </button>
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-6 text-sm text-red-700 flex items-center justify-between">
+          {error}
+          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 ml-4">✕</button>
+        </div>
+      )}
 
       {showForm && (
         <div className="bg-white border border-zinc-200 rounded-xl p-6 mb-6">
@@ -166,7 +190,7 @@ export default function CategoriesClient({ categories: initial, tenantId }: Prop
                   Editar
                 </button>
                 <button
-                  onClick={() => handleDelete(cat.id)}
+                  onClick={() => setConfirmId(cat.id)}
                   className="text-xs px-3 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
                 >
                   Excluir

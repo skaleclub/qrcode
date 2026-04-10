@@ -1,0 +1,28 @@
+import sharp from 'sharp'
+
+export const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+
+export async function validateAndConvertToWebP(file: File): Promise<{ buffer: Buffer; error?: never } | { buffer?: never; error: string }> {
+  if (file.size > MAX_FILE_SIZE) {
+    return { error: `Arquivo muito grande. Máximo permitido: 5MB (recebido: ${(file.size / 1024 / 1024).toFixed(1)}MB)` }
+  }
+
+  const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
+  if (!allowed.includes(file.type)) {
+    return { error: 'Formato não suportado. Use PNG, JPG, WebP ou GIF.' }
+  }
+
+  const bytes = await file.arrayBuffer()
+  const input = Buffer.from(bytes)
+
+  // SVG não converte para WebP — serve direto
+  if (file.type === 'image/svg+xml') {
+    return { buffer: input }
+  }
+
+  const buffer = await sharp(input)
+    .webp({ quality: 85 })
+    .toBuffer()
+
+  return { buffer }
+}
