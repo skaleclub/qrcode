@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
+  const next = searchParams.get('next') ?? '/'
 
   if (code) {
     const supabase = await createClient()
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
         }
 
         if (profile?.role === 'customer') {
-          return NextResponse.redirect(`${origin}/`)
+          return NextResponse.redirect(`${origin}${next}`)
         }
 
         // Garante que o profile existe e tem role válido

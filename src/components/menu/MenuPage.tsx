@@ -63,10 +63,16 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
           ) : (
             <div className="w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center text-3xl">🏪</div>
           )}
-          <div>
+          <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold">{tenant.name}</h1>
             {settings?.address && <p className="text-sm opacity-75 mt-0.5">{settings.address}</p>}
           </div>
+          <a
+            href={`/auth/register?from=/${tenant.slug}`}
+            className="flex-shrink-0 text-xs font-semibold bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full"
+          >
+            Create account
+          </a>
         </div>
         <div className="max-w-2xl mx-auto px-4 pb-4">
           <input

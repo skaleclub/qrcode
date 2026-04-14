@@ -2,8 +2,9 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
+  const { origin } = new URL(request.url)
   const body = await request.json()
-  const { name, email, phone, password } = body
+  const { name, email, phone, password, redirectTo } = body
 
   if (!name?.trim()) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
   if (!email?.trim()) return NextResponse.json({ error: 'Email is required' }, { status: 400 })
@@ -11,7 +12,13 @@ export async function POST(request: Request) {
   if (!password || password.length < 8) return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
 
   const supabase = await createClient()
-  const { data, error } = await supabase.auth.signUp({ email, password })
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(redirectTo ?? '/')}`,
+    },
+  })
 
   if (error) {
     if (error.message.includes('already registered')) {
