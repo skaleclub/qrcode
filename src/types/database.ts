@@ -26,6 +26,7 @@ export interface TenantSettings {
   custom_tags: string[] | null
   currency: string
   language: string
+  whatsapp_orders_enabled: boolean
   updated_at: string
 }
 

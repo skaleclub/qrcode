@@ -24,7 +24,7 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
   const settings = tenant.tenant_settings
   const primaryColor = settings?.primary_color ?? '#000000'
   const accentColor = settings?.accent_color ?? '#FF5722'
-  const whatsapp = settings?.whatsapp
+  const whatsapp = settings?.whatsapp_orders_enabled ? settings?.whatsapp : null
   const currency = settings?.currency ?? 'USD'
 
   const featured = products.filter(p => p.is_featured)

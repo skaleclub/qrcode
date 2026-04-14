@@ -16,6 +16,7 @@ export default function BrandingClient({ settings, tenantId, tenantSlug }: Props
     accent_color: settings?.accent_color ?? '#FF5722',
     instagram: settings?.instagram ?? '',
     whatsapp: settings?.whatsapp ?? '',
+    whatsapp_orders_enabled: settings?.whatsapp_orders_enabled ?? false,
   })
   const [logoUrl, setLogoUrl] = useState(settings?.logo_url ?? '')
   const [bannerUrl, setBannerUrl] = useState(settings?.banner_url ?? '')
@@ -147,6 +148,20 @@ export default function BrandingClient({ settings, tenantId, tenantSlug }: Props
                   className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900" />
               </div>
             ))}
+          </div>
+          {/* WhatsApp orders toggle */}
+          <div className="mt-4 pt-4 border-t border-zinc-100 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-zinc-800">Enable WhatsApp orders</p>
+              <p className="text-xs text-zinc-400 mt-0.5">Show the "Order via WhatsApp" button on the public menu</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, whatsapp_orders_enabled: !f.whatsapp_orders_enabled }))}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${form.whatsapp_orders_enabled ? 'bg-zinc-900' : 'bg-zinc-200'}`}
+            >
+              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${form.whatsapp_orders_enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
           </div>
           <p className="text-xs text-zinc-400 mt-3">Address and phone are managed in <a href="/settings/store" className="underline hover:text-zinc-600">Store Settings</a>.</p>
         </div>
