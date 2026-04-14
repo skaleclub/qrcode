@@ -27,6 +27,7 @@ export interface TenantSettings {
   currency: string
   language: string
   whatsapp_orders_enabled: boolean
+  orders_enabled: boolean
   updated_at: string
 }
 

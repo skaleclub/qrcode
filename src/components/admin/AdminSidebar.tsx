@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation'
 
 const mainItems = [
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
+  { href: '/menus', label: 'Menus', icon: '📋' },
   { href: '/menu/categories', label: 'Categories', icon: '📂' },
   { href: '/menu/products', label: 'Products', icon: '🍽️' },
 ]
