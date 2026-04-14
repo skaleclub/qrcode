@@ -22,6 +22,10 @@ export async function GET(request: Request) {
           return NextResponse.redirect(`${origin}/overview`)
         }
 
+        if (profile?.role === 'customer') {
+          return NextResponse.redirect(`${origin}/`)
+        }
+
         // Garante que o profile existe e tem role válido
         if (!profile || !['superadmin', 'store-admin', 'store-staff', 'customer'].includes(profile.role)) {
           await service.from('profiles').upsert({

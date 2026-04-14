@@ -134,6 +134,10 @@ export default function LoginPage() {
           <p className="text-xs text-zinc-400 text-center mt-6">
             By signing in, you agree to the platform terms of use.
           </p>
+          <p className="text-xs text-zinc-400 text-center mt-2">
+            Don&apos;t have an account?{' '}
+            <a href="/auth/register" className="text-zinc-700 underline hover:text-zinc-900">Create one</a>
+          </p>
         </div>
 
         <p className="text-xs text-zinc-400 text-center mt-4">
