@@ -14,8 +14,6 @@ export default function BrandingClient({ settings, tenantId, tenantSlug }: Props
   const [form, setForm] = useState({
     primary_color: settings?.primary_color ?? '#000000',
     accent_color: settings?.accent_color ?? '#FF5722',
-    address: settings?.address ?? '',
-    phone: settings?.phone ?? '',
     instagram: settings?.instagram ?? '',
     whatsapp: settings?.whatsapp ?? '',
   })
@@ -133,13 +131,11 @@ export default function BrandingClient({ settings, tenantId, tenantSlug }: Props
           </div>
         </div>
 
-        {/* Contato */}
+        {/* Social & Ordering */}
         <div className="bg-white border border-zinc-200 rounded-xl p-5">
-          <h2 className="text-sm font-semibold text-zinc-900 mb-4">Contact information</h2>
+          <h2 className="text-sm font-semibold text-zinc-900 mb-4">Social & ordering</h2>
           <div className="space-y-3">
             {[
-              { key: 'address', label: 'Address', placeholder: '123 Main St, New York, NY' },
-              { key: 'phone', label: 'Phone', placeholder: '+1 (555) 000-0000' },
               { key: 'whatsapp', label: 'WhatsApp (full number)', placeholder: '15550000000' },
               { key: 'instagram', label: 'Instagram (without @)', placeholder: 'myrestaurant' },
             ].map(field => (
@@ -152,6 +148,7 @@ export default function BrandingClient({ settings, tenantId, tenantSlug }: Props
               </div>
             ))}
           </div>
+          <p className="text-xs text-zinc-400 mt-3">Address and phone are managed in <a href="/settings/store" className="underline hover:text-zinc-600">Store Settings</a>.</p>
         </div>
 
         <button type="submit" disabled={loading}

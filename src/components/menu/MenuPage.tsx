@@ -25,6 +25,7 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
   const primaryColor = settings?.primary_color ?? '#000000'
   const accentColor = settings?.accent_color ?? '#FF5722'
   const whatsapp = settings?.whatsapp
+  const currency = settings?.currency ?? 'USD'
 
   const featured = products.filter(p => p.is_featured)
 
@@ -45,7 +46,7 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
 
   function openWhatsApp(product: Product) {
     if (!whatsapp) return
-    const msg = encodeURIComponent(`Hi! I'd like to order: ${product.name} — ${formatPrice(product.price)}`)
+    const msg = encodeURIComponent(`Hi! I'd like to order: ${product.name} — ${formatPrice(product.price, currency)}`)
     window.open(`https://wa.me/${whatsapp}?text=${msg}`, '_blank')
   }
 
@@ -133,7 +134,7 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
                     : <div className="w-full h-24 bg-zinc-100 flex items-center justify-center text-3xl">🍽️</div>}
                   <div className="p-2">
                     <p className="text-xs font-semibold text-zinc-900 truncate">{p.name}</p>
-                    <p style={{ color: accentColor }} className="text-sm font-bold mt-0.5">{formatPrice(p.price)}</p>
+                    <p style={{ color: accentColor }} className="text-sm font-bold mt-0.5">{formatPrice(p.price, currency)}</p>
                   </div>
                 </button>
               ))}
@@ -154,7 +155,7 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
             <h2 className="text-base font-bold text-zinc-900 mb-3">{category.name}</h2>
             <div className="space-y-2">
               {items.map(p => (
-                <ProductCard key={p.id} product={p} accentColor={accentColor} onClick={() => setSelectedProduct(p)} />
+                <ProductCard key={p.id} product={p} accentColor={accentColor} currency={currency} onClick={() => setSelectedProduct(p)} />
               ))}
             </div>
           </section>
@@ -165,7 +166,7 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
             <h2 className="text-base font-bold text-zinc-900 mb-3">Other</h2>
             <div className="space-y-2">
               {uncategorized.map(p => (
-                <ProductCard key={p.id} product={p} accentColor={accentColor} onClick={() => setSelectedProduct(p)} />
+                <ProductCard key={p.id} product={p} accentColor={accentColor} currency={currency} onClick={() => setSelectedProduct(p)} />
               ))}
             </div>
           </section>
@@ -231,6 +232,7 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
         <ProductModal
           product={selectedProduct}
           accentColor={accentColor}
+          currency={currency}
           whatsapp={whatsapp}
           onClose={() => setSelectedProduct(null)}
           onWhatsApp={() => openWhatsApp(selectedProduct)}
@@ -240,7 +242,7 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
   )
 }
 
-function ProductCard({ product, accentColor, onClick }: { product: Product; accentColor: string; onClick: () => void }) {
+function ProductCard({ product, accentColor, currency, onClick }: { product: Product; accentColor: string; currency: string; onClick: () => void }) {
   return (
     <button onClick={onClick}
       className="w-full bg-white rounded-xl border border-zinc-200 p-3 flex gap-3 text-left hover:shadow-sm transition-shadow">
@@ -256,8 +258,8 @@ function ProductCard({ product, accentColor, onClick }: { product: Product; acce
         )}
         {product.description && <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{product.description}</p>}
         <div className="flex items-center gap-2 mt-2">
-          {product.original_price && <span className="text-xs text-zinc-400 line-through">{formatPrice(product.original_price)}</span>}
-          <span style={{ color: accentColor }} className="text-sm font-bold">{formatPrice(product.price)}</span>
+          {product.original_price && <span className="text-xs text-zinc-400 line-through">{formatPrice(product.original_price, currency)}</span>}
+          <span style={{ color: accentColor }} className="text-sm font-bold">{formatPrice(product.price, currency)}</span>
         </div>
       </div>
       {product.image_url && (
@@ -267,8 +269,8 @@ function ProductCard({ product, accentColor, onClick }: { product: Product; acce
   )
 }
 
-function ProductModal({ product, accentColor, whatsapp, onClose, onWhatsApp }: {
-  product: Product; accentColor: string; whatsapp?: string | null; onClose: () => void; onWhatsApp: () => void
+function ProductModal({ product, accentColor, currency, whatsapp, onClose, onWhatsApp }: {
+  product: Product; accentColor: string; currency: string; whatsapp?: string | null; onClose: () => void; onWhatsApp: () => void
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4" onClick={onClose}>
@@ -287,8 +289,8 @@ function ProductModal({ product, accentColor, whatsapp, onClose, onWhatsApp }: {
           {product.description && <p className="text-sm text-zinc-600 mb-4 leading-relaxed">{product.description}</p>}
           <div className="flex items-center justify-between">
             <div>
-              {product.original_price && <p className="text-sm text-zinc-400 line-through">{formatPrice(product.original_price)}</p>}
-              <p style={{ color: accentColor }} className="text-2xl font-bold">{formatPrice(product.price)}</p>
+              {product.original_price && <p className="text-sm text-zinc-400 line-through">{formatPrice(product.original_price, currency)}</p>}
+              <p style={{ color: accentColor }} className="text-2xl font-bold">{formatPrice(product.price, currency)}</p>
             </div>
             {whatsapp && (
               <button onClick={onWhatsApp} className="bg-green-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-green-600 transition-colors">

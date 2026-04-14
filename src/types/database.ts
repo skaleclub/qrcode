@@ -24,6 +24,8 @@ export interface TenantSettings {
   whatsapp: string | null
   business_hours: BusinessHours | null
   custom_tags: string[] | null
+  currency: string
+  language: string
   updated_at: string
 }
 

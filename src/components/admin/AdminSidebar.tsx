@@ -1,24 +1,32 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
-const navItems = [
+const mainItems = [
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
   { href: '/menu/categories', label: 'Categories', icon: '📂' },
   { href: '/menu/products', label: 'Products', icon: '🍽️' },
+]
+
+const adminPanelItems = [
+  { href: '/settings/store', label: 'Store', icon: '🏪' },
   { href: '/settings/branding', label: 'Branding', icon: '🎨' },
   { href: '/settings/qrcode', label: 'QR Code', icon: '📱' },
-  { href: '/settings/password', label: 'Change password', icon: '🔑' },
+  { href: '/settings/password', label: 'Change Password', icon: '🔑' },
+  { href: '/settings/staff', label: 'Staff', icon: '👥' },
 ]
 
 export default function AdminSidebar({ tenantName, tenantSlug, appName = 'XmartMenu' }: { tenantName: string; tenantSlug?: string; appName?: string }) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+  const isInSettings = pathname.startsWith('/settings')
+  const [panelOpen, setPanelOpen] = useState(isInSettings)
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -32,8 +40,8 @@ export default function AdminSidebar({ tenantName, tenantSlug, appName = 'XmartM
         <p className="text-sm font-semibold text-zinc-900 truncate">{tenantName}</p>
       </div>
 
-      <nav className="flex-1 p-3 space-y-1">
-        {navItems.map((item) => (
+      <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+        {mainItems.map(item => (
           <Link
             key={item.href}
             href={item.href}
@@ -48,6 +56,42 @@ export default function AdminSidebar({ tenantName, tenantSlug, appName = 'XmartM
             {item.label}
           </Link>
         ))}
+
+        {/* Admin Panel collapsible */}
+        <div className="pt-1">
+          <button
+            onClick={() => setPanelOpen(o => !o)}
+            className={cn(
+              'w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+              isInSettings ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'
+            )}
+          >
+            <span className="flex items-center gap-3">
+              <span>⚙️</span> Admin Panel
+            </span>
+            <span className={cn('text-xs transition-transform', panelOpen ? 'rotate-180' : '')}>▼</span>
+          </button>
+
+          {panelOpen && (
+            <div className="mt-0.5 ml-3 pl-3 border-l border-zinc-200 space-y-0.5">
+              {adminPanelItems.map(item => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                    pathname.startsWith(item.href)
+                      ? 'bg-zinc-100 text-zinc-900 font-semibold'
+                      : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'
+                  )}
+                >
+                  <span>{item.icon}</span>
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       </nav>
 
       <div className="p-3 border-t border-zinc-200 space-y-1">
