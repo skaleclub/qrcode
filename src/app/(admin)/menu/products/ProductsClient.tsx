@@ -38,6 +38,7 @@ export default function ProductsClient({ products: initial, categories, tenantId
     original_price: '',
     category_id: '',
     image_url: '',
+    image_urls: [] as string[],
     is_featured: false,
     tags: [] as string[],
   })
@@ -49,20 +50,37 @@ export default function ProductsClient({ products: initial, categories, tenantId
     ? products
     : products.filter(p => p.category_id === filterCategory)
 
+  function getProductImages(product: ProductWithCategory) {
+    if (product.image_urls && product.image_urls.length > 0) return product.image_urls
+    return product.image_url ? [product.image_url] : []
+  }
+
   function resetForm() {
-    setForm({ name: '', description: '', price: '', original_price: '', category_id: '', image_url: '', is_featured: false, tags: [] })
+    setForm({
+      name: '',
+      description: '',
+      price: '',
+      original_price: '',
+      category_id: '',
+      image_url: '',
+      image_urls: [],
+      is_featured: false,
+      tags: [],
+    })
     setEditingId(null)
     setShowForm(false)
   }
 
   function startEdit(p: ProductWithCategory) {
+    const images = getProductImages(p)
     setForm({
       name: p.name,
       description: p.description ?? '',
       price: String(p.price),
       original_price: p.original_price ? String(p.original_price) : '',
       category_id: p.category_id ?? '',
-      image_url: p.image_url ?? '',
+      image_url: images[0] ?? '',
+      image_urls: images,
       is_featured: p.is_featured,
       tags: p.tags ?? [],
     })
@@ -71,24 +89,44 @@ export default function ProductsClient({ products: initial, categories, tenantId
   }
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0) return
     setUploadingImage(true)
 
-    const ext = file.name.split('.').pop()
-    const filename = `${tenantId}/${Date.now()}.${ext}`
+    const uploadedUrls: string[] = []
 
-    const { data, error } = await supabase.storage
-      .from('product-images')
-      .upload(filename, file, { upsert: true })
+    for (const file of files) {
+      const ext = file.name.split('.').pop()
+      const filename = `${tenantId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
 
-    if (!error && data) {
-      const { data: { publicUrl } } = supabase.storage
+      const { data, error } = await supabase.storage
         .from('product-images')
-        .getPublicUrl(data.path)
-      setForm(f => ({ ...f, image_url: publicUrl }))
+        .upload(filename, file, { upsert: true })
+
+      if (!error && data) {
+        const { data: { publicUrl } } = supabase.storage
+          .from('product-images')
+          .getPublicUrl(data.path)
+        uploadedUrls.push(publicUrl)
+      }
     }
+
+    if (uploadedUrls.length > 0) {
+      setForm(f => {
+        const imageUrls = [...f.image_urls, ...uploadedUrls]
+        return { ...f, image_urls: imageUrls, image_url: imageUrls[0] ?? '' }
+      })
+    }
+
+    e.target.value = ''
     setUploadingImage(false)
+  }
+
+  function removeImageAt(index: number) {
+    setForm(f => {
+      const next = f.image_urls.filter((_, i) => i !== index)
+      return { ...f, image_urls: next, image_url: next[0] ?? '' }
+    })
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -102,7 +140,8 @@ export default function ProductsClient({ products: initial, categories, tenantId
       price: parseFloat(form.price),
       original_price: form.original_price ? parseFloat(form.original_price) : null,
       category_id: form.category_id || null,
-      image_url: form.image_url || null,
+      image_url: form.image_urls[0] || form.image_url || null,
+      image_urls: form.image_urls,
       is_featured: form.is_featured,
       tags: form.tags,
       position: editingId ? undefined : products.length,
@@ -258,17 +297,40 @@ export default function ProductsClient({ products: initial, categories, tenantId
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-700 mb-1">Image</label>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">Images</label>
                 <input
                   type="file"
                   accept="image/*"
+                  multiple
                   onChange={handleImageUpload}
                   className="w-full text-sm text-zinc-600 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-zinc-100 file:text-zinc-700 hover:file:bg-zinc-200"
                 />
-                {uploadingImage && <p className="text-xs text-zinc-400 mt-1">Uploading image...</p>}
-                {form.image_url && <p className="text-xs text-green-600 mt-1">Image uploaded</p>}
+                {uploadingImage && <p className="text-xs text-zinc-400 mt-1">Uploading image(s)...</p>}
+                {form.image_urls.length > 0 && (
+                  <p className="text-xs text-green-600 mt-1">{form.image_urls.length} image(s) uploaded</p>
+                )}
               </div>
             </div>
+            {form.image_urls.length > 0 && (
+              <div>
+                <p className="text-sm font-medium text-zinc-700 mb-2">Preview</p>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {form.image_urls.map((url, idx) => (
+                    <div key={`${url}-${idx}`} className="relative flex-shrink-0">
+                      <img src={url} alt={`Image ${idx + 1}`} className="w-16 h-16 rounded-lg object-cover border border-zinc-200" />
+                      <button
+                        type="button"
+                        onClick={() => removeImageAt(idx)}
+                        className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-black text-white text-xs leading-5"
+                        aria-label={`Remove image ${idx + 1}`}
+                      >
+                        x
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-zinc-700 mb-2">Tags</label>
@@ -330,9 +392,9 @@ export default function ProductsClient({ products: initial, categories, tenantId
         <div className="space-y-2">
           {filtered.map((product) => (
             <div key={product.id} className="bg-white border border-zinc-200 rounded-xl p-4 flex items-center gap-4">
-              {product.image_url ? (
+              {getProductImages(product)[0] ? (
                 <img
-                  src={product.image_url}
+                  src={getProductImages(product)[0]}
                   alt={product.name}
                   className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
                 />
@@ -352,6 +414,9 @@ export default function ProductsClient({ products: initial, categories, tenantId
                   ))}
                 </div>
                 <p className="text-xs text-zinc-500 mt-0.5 truncate">{product.category?.name ?? 'No category'}</p>
+                {getProductImages(product).length > 1 && (
+                  <p className="text-xs text-zinc-400 mt-0.5">{getProductImages(product).length} photos</p>
+                )}
                 <div className="flex items-center gap-2 mt-1">
                   {product.original_price && (
                     <span className="text-xs text-zinc-400 line-through">{formatPrice(product.original_price)}</span>

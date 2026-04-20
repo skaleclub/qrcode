@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { formatPrice } from '@/lib/utils'
 import type { Category, Product, TenantWithSettings } from '@/types/database'
 
@@ -8,6 +8,7 @@ interface Props {
   tenant: TenantWithSettings
   categories: Category[]
   products: Product[]
+  menuName?: string
   footerBrand?: string
 }
 
@@ -16,10 +17,19 @@ const DAYS: Record<string, string> = {
   thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday',
 }
 
+function getProductImages(product: Product) {
+  if (product.image_urls && product.image_urls.length > 0) return product.image_urls
+  return product.image_url ? [product.image_url] : []
+}
+
 export default function MenuPage({ tenant, categories, products, footerBrand = 'XmartMenu' }: Props) {
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [showFooterAtEnd, setShowFooterAtEnd] = useState(false)
+  const [footerHeight, setFooterHeight] = useState(0)
+  const footerRef = useRef<HTMLElement | null>(null)
+  const featuredRailRef = useRef<HTMLDivElement | null>(null)
 
   const settings = tenant.tenant_settings
   const primaryColor = settings?.primary_color ?? '#000000'
@@ -29,6 +39,8 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
   const currency = settings?.currency ?? 'USD'
 
   const featured = products.filter(p => p.is_featured)
+  const featuredBase = featured.length === 1 ? [featured[0], featured[0], featured[0]] : featured
+  const featuredLoop = [...featuredBase, ...featuredBase]
 
   const filtered = products.filter(p => {
     const matchSearch = search === '' ||
@@ -53,13 +65,78 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
 
   const hours = settings?.business_hours
   const hasHours = hours && Object.values(hours).some(Boolean)
-  const hasContact = settings?.phone || settings?.instagram || settings?.whatsapp || settings?.address
+  const email = (settings && 'email' in settings)
+    ? (settings as { email?: string | null }).email ?? null
+    : null
+  const hasContact = settings?.phone || settings?.instagram || settings?.whatsapp || settings?.address || email
+  const hasFixedFooter = hasContact || footerBrand
+
+  useEffect(() => {
+    const onScroll = () => {
+      const currentY = window.scrollY
+      const viewportBottom = currentY + window.innerHeight
+      const pageBottom = document.documentElement.scrollHeight
+      const isAtEnd = viewportBottom >= pageBottom - 24
+      setShowFooterAtEnd(isAtEnd)
+    }
+
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!hasFixedFooter) {
+      setFooterHeight(0)
+      return
+    }
+
+    const measure = () => {
+      setFooterHeight(footerRef.current?.offsetHeight ?? 0)
+    }
+
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [hasFixedFooter, hasContact, footerBrand])
+
+  useEffect(() => {
+    const enabled = featured.length > 0 && !search && !activeCategory
+    if (!enabled) return
+
+    const rail = featuredRailRef.current
+    if (!rail) return
+
+    let rafId = 0
+    const speed = 0.45
+
+    const tick = () => {
+      const halfWidth = rail.scrollWidth / 2
+      if (halfWidth > rail.clientWidth) {
+        rail.scrollLeft += speed
+        if (rail.scrollLeft >= halfWidth) {
+          rail.scrollLeft -= halfWidth
+        }
+      }
+      rafId = window.requestAnimationFrame(tick)
+    }
+
+    rafId = window.requestAnimationFrame(tick)
+
+    return () => {
+      window.cancelAnimationFrame(rafId)
+    }
+  }, [featured.length, search, activeCategory])
 
   return (
     <div className="min-h-screen bg-zinc-50">
       {/* Header */}
       <header style={{ backgroundColor: primaryColor }} className="text-white">
-        <div className="max-w-2xl mx-auto px-4 py-6 flex items-center gap-4">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-5 sm:py-6 flex flex-wrap sm:flex-nowrap items-center gap-3 sm:gap-4">
           {settings?.logo_url ? (
             <img src={settings.logo_url} alt={tenant.name} className="w-14 h-14 rounded-xl object-contain bg-white/10 p-1" />
           ) : (
@@ -71,12 +148,12 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
           </div>
           <a
             href={`/auth/register?from=/${tenant.slug}`}
-            className="flex-shrink-0 text-xs font-semibold bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full"
+            className="w-full sm:w-auto text-center flex-shrink-0 text-xs font-semibold bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 rounded-full"
           >
             Create account
           </a>
         </div>
-        <div className="max-w-2xl mx-auto px-4 pb-4">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 pb-4">
           <input
             type="search"
             value={search}
@@ -89,15 +166,15 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
 
       {/* Banner */}
       {settings?.banner_url && (
-        <div className="max-w-2xl mx-auto px-4 pt-4">
-          <img src={settings.banner_url} alt="Banner" className="w-full rounded-xl object-cover max-h-48" />
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 pt-4 sm:pt-5">
+          <img src={settings.banner_url} alt="Banner" className="w-full rounded-xl object-cover max-h-48 sm:max-h-64 lg:max-h-72" />
         </div>
       )}
 
       {/* Filtro de categorias */}
       {categories.length > 0 && (
         <div className="sticky top-0 z-10 bg-white border-b border-zinc-200 shadow-sm">
-          <div className="max-w-2xl mx-auto px-4">
+          <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
             <div className="flex gap-2 overflow-x-auto py-3 scrollbar-hide">
               <button
                 onClick={() => setActiveCategory(null)}
@@ -121,18 +198,24 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
         </div>
       )}
 
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-8">
+      <div
+        className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-6 sm:py-8 lg:py-10 space-y-8 sm:space-y-10"
+        style={hasFixedFooter ? { paddingBottom: `${footerHeight + 24}px` } : undefined}
+      >
         {/* Destaques */}
         {featured.length > 0 && !search && !activeCategory && (
           <section>
             <h2 className="text-base font-bold text-zinc-900 mb-3">⭐ Featured</h2>
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {featured.map(p => (
-                <button key={p.id} onClick={() => setSelectedProduct(p)}
-                  className="flex-shrink-0 w-40 bg-white rounded-xl border border-zinc-200 overflow-hidden text-left hover:shadow-md transition-shadow">
-                  {p.image_url
-                    ? <img src={p.image_url} alt={p.name} className="w-full h-24 object-cover" />
-                    : <div className="w-full h-24 bg-zinc-100 flex items-center justify-center text-3xl">🍽️</div>}
+            <div
+              ref={featuredRailRef}
+              className="-mx-4 sm:-mx-6 lg:-mx-8 xl:-mx-12 px-4 sm:px-6 lg:px-8 xl:px-12 flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide [scrollbar-gutter:stable]"
+            >
+              {featuredLoop.map((p, idx) => (
+                <button key={`${p.id}-${idx}`} onClick={() => setSelectedProduct(p)}
+                  className="flex-shrink-0 w-40 sm:w-48 lg:w-56 bg-white rounded-xl border border-zinc-200 overflow-hidden text-left hover:shadow-md transition-shadow">
+                  {getProductImages(p)[0]
+                    ? <img src={getProductImages(p)[0]} alt={p.name} className="w-full h-24 sm:h-28 lg:h-32 object-cover" />
+                    : <div className="w-full h-24 sm:h-28 lg:h-32 bg-zinc-100 flex items-center justify-center text-3xl">🍽️</div>}
                   <div className="p-2">
                     <p className="text-xs font-semibold text-zinc-900 truncate">{p.name}</p>
                     <p style={{ color: accentColor }} className="text-sm font-bold mt-0.5">{formatPrice(p.price, currency)}</p>
@@ -154,7 +237,7 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
         {groupedByCategory.map(({ category, items }) => (
           <section key={category.id}>
             <h2 className="text-base font-bold text-zinc-900 mb-3">{category.name}</h2>
-            <div className="space-y-2">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {items.map(p => (
                 <ProductCard key={p.id} product={p} accentColor={accentColor} currency={currency} onClick={() => setSelectedProduct(p)} />
               ))}
@@ -165,7 +248,7 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
         {uncategorized.length > 0 && (
           <section>
             <h2 className="text-base font-bold text-zinc-900 mb-3">Other</h2>
-            <div className="space-y-2">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {uncategorized.map(p => (
                 <ProductCard key={p.id} product={p} accentColor={accentColor} currency={currency} onClick={() => setSelectedProduct(p)} />
               ))}
@@ -192,42 +275,44 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
           </section>
         )}
 
-        {/* Contato */}
-        {hasContact && (
-          <section className="bg-white rounded-xl border border-zinc-200 p-5">
-            <h2 className="text-sm font-bold text-zinc-900 mb-3">Contact</h2>
-            <div className="space-y-2">
-              {settings?.phone && (
-                <a href={`tel:${settings.phone}`} className="flex items-center gap-3 text-sm text-zinc-700 hover:text-zinc-900">
-                  <span className="text-base">📞</span> {settings.phone}
-                </a>
-              )}
-              {settings?.whatsapp && (
-                <a href={`https://wa.me/${settings.whatsapp}`} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-3 text-sm text-zinc-700 hover:text-zinc-900">
-                  <span className="text-base">💬</span> WhatsApp
-                </a>
-              )}
-              {settings?.instagram && (
-                <a href={`https://instagram.com/${settings.instagram}`} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-3 text-sm text-zinc-700 hover:text-zinc-900">
-                  <span className="text-base">📸</span> @{settings.instagram}
-                </a>
-              )}
-              {settings?.address && (
-                <div className="flex items-start gap-3 text-sm text-zinc-700">
-                  <span className="text-base">📍</span> {settings.address}
-                </div>
-              )}
-            </div>
-          </section>
-        )}
-
-        <footer className="pt-2 pb-10 text-center">
-          <p className="text-xs text-zinc-400">Digital menu by</p>
-          <a href="/" className="text-xs font-semibold text-zinc-500 hover:text-zinc-700 transition-colors">{footerBrand}</a>
-        </footer>
       </div>
+
+      {hasFixedFooter && (
+        <footer ref={footerRef} className={`fixed bottom-0 inset-x-0 z-40 border-t border-zinc-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 transition-all duration-300 ${showFooterAtEnd ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}>
+          <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-3">
+            {hasContact && (
+              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm text-zinc-700 text-center">
+                {settings?.phone && (
+                  <a href={`tel:${settings.phone}`} className="hover:text-zinc-900">
+                    📞 {settings.phone}
+                  </a>
+                )}
+                {settings?.whatsapp && (
+                  <a href={`https://wa.me/${settings.whatsapp}`} target="_blank" rel="noopener noreferrer" className="hover:text-zinc-900">
+                    💬 WhatsApp
+                  </a>
+                )}
+                {settings?.instagram && (
+                  <a href={`https://instagram.com/${settings.instagram}`} target="_blank" rel="noopener noreferrer" className="hover:text-zinc-900">
+                    📸 @{settings.instagram}
+                  </a>
+                )}
+                {email && (
+                  <a href={`mailto:${email}`} className="hover:text-zinc-900">
+                    ✉️ {email}
+                  </a>
+                )}
+                {settings?.address && <span className="text-zinc-600">📍 {settings.address}</span>}
+              </div>
+            )}
+            {footerBrand && (
+              <div className="mt-1 text-xs text-zinc-500 text-center">
+                Digital menu by <a href="/" className="font-semibold hover:text-zinc-700 transition-colors">{footerBrand}</a>
+              </div>
+            )}
+          </div>
+        </footer>
+      )}
 
       {selectedProduct && (
         <ProductModal
@@ -244,12 +329,16 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
 }
 
 function ProductCard({ product, accentColor, currency, onClick }: { product: Product; accentColor: string; currency: string; onClick: () => void }) {
+  const images = getProductImages(product)
   return (
     <button onClick={onClick}
-      className="w-full bg-white rounded-xl border border-zinc-200 p-3 flex gap-3 text-left hover:shadow-sm transition-shadow">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start gap-2 flex-wrap">
-          <p className="text-sm font-semibold text-zinc-900">{product.name}</p>
+      className="w-full bg-white rounded-xl border border-zinc-200 overflow-hidden text-left hover:shadow-sm transition-shadow">
+      {images[0]
+        ? <img src={images[0]} alt={product.name} className="w-full h-32 object-cover" />
+        : <div className="w-full h-32 bg-zinc-100 flex items-center justify-center text-3xl">🍽️</div>}
+      <div className="p-2">
+        <div className="flex items-start gap-1 flex-wrap">
+          <p className="text-sm font-semibold text-zinc-900 truncate">{product.name}</p>
           {product.is_featured && <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">Featured</span>}
         </div>
         {product.tags?.length > 0 && (
@@ -258,14 +347,11 @@ function ProductCard({ product, accentColor, currency, onClick }: { product: Pro
           </div>
         )}
         {product.description && <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{product.description}</p>}
-        <div className="flex items-center gap-2 mt-2">
+        <div className="flex items-center gap-2 mt-1.5">
           {product.original_price && <span className="text-xs text-zinc-400 line-through">{formatPrice(product.original_price, currency)}</span>}
           <span style={{ color: accentColor }} className="text-sm font-bold">{formatPrice(product.price, currency)}</span>
         </div>
       </div>
-      {product.image_url && (
-        <img src={product.image_url} alt={product.name} className="w-20 h-20 rounded-lg object-cover flex-shrink-0" />
-      )}
     </button>
   )
 }
@@ -273,11 +359,54 @@ function ProductCard({ product, accentColor, currency, onClick }: { product: Pro
 function ProductModal({ product, accentColor, currency, whatsapp, onClose, onWhatsApp }: {
   product: Product; accentColor: string; currency: string; whatsapp?: string | null; onClose: () => void; onWhatsApp: () => void
 }) {
+  const images = getProductImages(product)
+  const [imageIndex, setImageIndex] = useState(0)
+  const hasManyImages = images.length > 1
+
+  useEffect(() => {
+    setImageIndex(0)
+  }, [product.id])
+
+  const prevImage = () => setImageIndex(i => (i - 1 + images.length) % images.length)
+  const nextImage = () => setImageIndex(i => (i + 1) % images.length)
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4" onClick={onClose}>
-      <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-        {product.image_url && <img src={product.image_url} alt={product.name} className="w-full h-56 object-cover" />}
-        <div className="p-5">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-0 sm:px-4" onClick={onClose}>
+      <div className="bg-white w-full sm:max-w-md lg:max-w-lg rounded-t-2xl sm:rounded-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        {images[imageIndex] && (
+          <div className="relative">
+            <img src={images[imageIndex]} alt={`${product.name} ${imageIndex + 1}`} className="w-full h-56 sm:h-64 object-cover" />
+            {hasManyImages && (
+              <>
+                <button
+                  onClick={prevImage}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/45 text-white w-8 h-8 rounded-full"
+                  aria-label="Previous image"
+                >
+                  ‹
+                </button>
+                <button
+                  onClick={nextImage}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/45 text-white w-8 h-8 rounded-full"
+                  aria-label="Next image"
+                >
+                  ›
+                </button>
+                <div className="absolute bottom-2 inset-x-0 flex justify-center gap-1.5">
+                  {images.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setImageIndex(i)}
+                      className={`w-1.5 h-1.5 rounded-full ${i === imageIndex ? 'bg-white' : 'bg-white/50'}`}
+                      aria-label={`Go to image ${i + 1}`}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+        <div className="p-5 sm:p-6">
           <div className="flex items-start justify-between gap-2 mb-2">
             <h3 className="text-lg font-bold text-zinc-900">{product.name}</h3>
             <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 text-xl leading-none flex-shrink-0">✕</button>
@@ -288,13 +417,13 @@ function ProductModal({ product, accentColor, currency, whatsapp, onClose, onWha
             </div>
           )}
           {product.description && <p className="text-sm text-zinc-600 mb-4 leading-relaxed">{product.description}</p>}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               {product.original_price && <p className="text-sm text-zinc-400 line-through">{formatPrice(product.original_price, currency)}</p>}
               <p style={{ color: accentColor }} className="text-2xl font-bold">{formatPrice(product.price, currency)}</p>
             </div>
             {whatsapp && (
-              <button onClick={onWhatsApp} className="bg-green-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-green-600 transition-colors">
+              <button onClick={onWhatsApp} className="w-full sm:w-auto bg-green-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-green-600 transition-colors">
                 Order via WhatsApp
               </button>
             )}

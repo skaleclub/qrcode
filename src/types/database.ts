@@ -68,6 +68,7 @@ export interface Product {
   price: number
   original_price: number | null
   image_url: string | null
+  image_urls: string[]
   is_available: boolean
   is_featured: boolean
   tags: string[]
