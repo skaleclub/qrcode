@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import AdminSidebar from '@/components/admin/AdminSidebar'
+import { getActiveMenuForTenant } from '@/lib/get-active-menu'
 
 export default async function AdminLayout({
   children,
@@ -46,6 +47,15 @@ export default async function AdminLayout({
 
     if (!tenant) redirect('/tenants')
 
+    const [{ data: menus }, activeMenu] = await Promise.all([
+      supabase
+        .from('menus')
+        .select('id, name, slug, is_active, is_default')
+        .eq('tenant_id', tenant.id)
+        .order('position'),
+      getActiveMenuForTenant(tenant.id),
+    ])
+
     return (
       <div className="flex h-screen bg-zinc-50">
         <div className="flex flex-col w-60 flex-shrink-0">
@@ -54,7 +64,13 @@ export default async function AdminLayout({
             <a href="/api/admin/exit-preview" className="ml-2 underline">Exit</a>
           </div>
           <div className="flex-1">
-            <AdminSidebar tenantName={tenant.name} tenantSlug={tenant.slug} appName={appName} />
+            <AdminSidebar
+              tenantName={tenant.name}
+              tenantSlug={tenant.slug}
+              appName={appName}
+              menus={menus ?? []}
+              activeMenuId={activeMenu?.id ?? null}
+            />
           </div>
         </div>
         <main className="flex-1 overflow-y-auto">{children}</main>
@@ -62,9 +78,25 @@ export default async function AdminLayout({
     )
   }
 
+  const tenantId = profile.tenant_id as string
+  const [{ data: menus }, activeMenu] = await Promise.all([
+    supabase
+      .from('menus')
+      .select('id, name, slug, is_active, is_default')
+      .eq('tenant_id', tenantId)
+      .order('position'),
+    getActiveMenuForTenant(tenantId),
+  ])
+
   return (
     <div className="flex h-screen bg-zinc-50">
-      <AdminSidebar tenantName={profile.tenants?.name ?? 'My Restaurant'} tenantSlug={(profile.tenants as any)?.slug} />
+      <AdminSidebar
+        tenantName={profile.tenants?.name ?? 'My Restaurant'}
+        tenantSlug={(profile.tenants as any)?.slug}
+        appName={appName}
+        menus={menus ?? []}
+        activeMenuId={activeMenu?.id ?? null}
+      />
       <main className="flex-1 overflow-y-auto">
         {children}
       </main>

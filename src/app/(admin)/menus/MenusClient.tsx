@@ -1,5 +1,7 @@
 'use client'
 import { useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 
 const PURPOSES = ['restaurant','bar','cafe','hotel','salon','retail','other']
@@ -11,13 +13,15 @@ const LANGUAGES = [
 
 interface Menu { id: string; name: string; slug: string; language: string; purpose: string; description: string | null; is_active: boolean; is_default: boolean; position: number }
 
-export default function MenusClient({ menus: initial }: { menus: Menu[] }) {
+export default function MenusClient({ menus: initial, tenantSlug, activeMenuId }: { menus: Menu[]; tenantSlug: string; activeMenuId: string | null }) {
   const [menus, setMenus] = useState(initial)
+  const [selectedMenuId, setSelectedMenuId] = useState(activeMenuId)
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({ name: '', language: 'en', purpose: 'restaurant', description: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmId, setConfirmId] = useState<string | null>(null)
+  const router = useRouter()
 
   const input = 'w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900'
 
@@ -46,6 +50,22 @@ export default function MenusClient({ menus: initial }: { menus: Menu[] }) {
     if (res.ok) setMenus(m => m.filter(x => x.id !== confirmId))
     else { const d = await res.json(); setError(d.error) }
     setConfirmId(null)
+  }
+
+  async function selectMenu(menuId: string) {
+    const res = await fetch('/api/admin/menus/select', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ menu_id: menuId }),
+    })
+
+    if (!res.ok) {
+      const d = await res.json()
+      setError(d.error ?? 'Failed to select menu')
+      return
+    }
+
+    setSelectedMenuId(menuId)
   }
 
   return (
@@ -89,12 +109,29 @@ export default function MenusClient({ menus: initial }: { menus: Menu[] }) {
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="font-semibold text-zinc-900">{menu.name}</p>
                 {menu.is_default && <span className="text-xs bg-zinc-900 text-white px-2 py-0.5 rounded-full">Default</span>}
+                {selectedMenuId === menu.id && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Editing</span>}
                 {!menu.is_active && <span className="text-xs bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded-full">Inactive</span>}
               </div>
               <p className="text-xs text-zinc-400 mt-1">/{menu.slug} · {menu.language.toUpperCase()} · {menu.purpose}</p>
               {menu.description && <p className="text-xs text-zinc-500 mt-0.5">{menu.description}</p>}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={async () => {
+                  await selectMenu(menu.id)
+                  router.push('/menu/categories')
+                }}
+                className="text-xs px-3 py-1.5 border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50"
+              >
+                Manage items
+              </button>
+              <Link
+                href={`/${tenantSlug}${menu.is_default ? '' : `/${menu.slug}`}`}
+                target="_blank"
+                className="text-xs px-3 py-1.5 border border-zinc-200 text-zinc-600 rounded-lg hover:bg-zinc-50"
+              >
+                View menu
+              </Link>
               {!menu.is_default && (
                 <button onClick={() => handleToggle(menu, 'is_default')} className="text-xs px-3 py-1.5 border border-zinc-200 text-zinc-600 rounded-lg hover:bg-zinc-50">Set default</button>
               )}

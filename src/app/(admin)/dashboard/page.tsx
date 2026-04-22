@@ -1,12 +1,15 @@
 export const dynamic = 'force-dynamic'
 
+import { CopyMenuUrl } from '@/components/admin/CopyMenuUrl'
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveTenant } from '@/lib/get-effective-tenant'
+import { getActiveMenuForTenant } from '@/lib/get-active-menu'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
   const effective = await getEffectiveTenant()
   const tenantId = effective?.tenantId
+  const activeMenu = tenantId ? await getActiveMenuForTenant(tenantId) : null
 
   const [
     { count: totalProducts },
@@ -29,8 +32,15 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-8">
-      <h1 className="text-2xl font-bold text-zinc-900 mb-2">Dashboard</h1>
-      <p className="text-sm text-zinc-500 mb-8">Overview of your menu</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-900 mb-2">Dashboard</h1>
+          <p className="text-sm text-zinc-500">Overview of your menu</p>
+        </div>
+        {effective?.slug && (
+          <CopyMenuUrl path={`/${effective.slug}${activeMenu && !activeMenu.is_default ? `/${activeMenu.slug}` : ''}`} />
+        )}
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
         {stats.map((stat) => (

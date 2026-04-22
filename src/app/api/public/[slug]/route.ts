@@ -19,10 +19,34 @@ export async function GET(
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  const [{ data: categories }, { data: products }] = await Promise.all([
-    supabase.from('categories').select('*').eq('tenant_id', tenant.id).eq('is_active', true).order('position'),
-    supabase.from('products').select('*').eq('tenant_id', tenant.id).eq('is_available', true).order('position'),
-  ])
+  const { data: menu } = await supabase
+    .from('menus')
+    .select('id, name')
+    .eq('tenant_id', tenant.id)
+    .eq('is_active', true)
+    .eq('is_default', true)
+    .maybeSingle()
 
-  return NextResponse.json({ tenant, categories, products })
+  const resolvedMenu = menu ?? (await supabase
+    .from('menus')
+    .select('id, name')
+    .eq('tenant_id', tenant.id)
+    .eq('is_active', true)
+    .order('position')
+    .limit(1)
+    .maybeSingle()).data
+
+  let categories: unknown[] = []
+  let products: unknown[] = []
+
+  if (resolvedMenu?.id) {
+    const response = await Promise.all([
+      supabase.from('categories').select('*').eq('menu_id', resolvedMenu.id).eq('is_active', true).order('position'),
+      supabase.from('products').select('*').eq('menu_id', resolvedMenu.id).eq('is_available', true).order('position'),
+    ])
+    categories = response[0].data ?? []
+    products = response[1].data ?? []
+  }
+
+  return NextResponse.json({ tenant, menu: resolvedMenu, categories, products })
 }

@@ -17,10 +17,12 @@ interface Props {
   products: ProductWithCategory[]
   categories: Pick<Category, 'id' | 'name'>[]
   tenantId: string
+  menuId: string | null
+  activeMenuName: string | null
   availableTags?: string[]
 }
 
-export default function ProductsClient({ products: initial, categories, tenantId, availableTags }: Props) {
+export default function ProductsClient({ products: initial, categories, tenantId, menuId, activeMenuName, availableTags }: Props) {
   const TAGS = availableTags?.length ? availableTags : DEFAULT_TAGS
   const [products, setProducts] = useState(initial)
   const [showForm, setShowForm] = useState(false)
@@ -135,6 +137,7 @@ export default function ProductsClient({ products: initial, categories, tenantId
 
     const payload = {
       tenant_id: tenantId,
+      menu_id: menuId,
       name: form.name,
       description: form.description || null,
       price: parseFloat(form.price),
@@ -201,15 +204,22 @@ export default function ProductsClient({ products: initial, categories, tenantId
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">Produtos</h1>
-          <p className="text-sm text-zinc-500 mt-1">{products.length} product(s)</p>
+          <p className="text-sm text-zinc-500 mt-1">{products.length} product(s){activeMenuName ? ` · Menu: ${activeMenuName}` : ''}</p>
         </div>
         <button
           onClick={() => setShowForm(true)}
+          disabled={!menuId}
           className="bg-zinc-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
         >
           + New product
         </button>
       </div>
+
+      {!menuId && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6 text-sm text-amber-700">
+          No menu selected. Choose a menu in the sidebar to manage its products.
+        </div>
+      )}
 
       {/* Filtro por categoria */}
       <div className="flex gap-2 mb-6 flex-wrap">
@@ -231,7 +241,7 @@ export default function ProductsClient({ products: initial, categories, tenantId
       </div>
 
       {/* Formulário */}
-      {showForm && (
+      {showForm && menuId && (
         <div className="bg-white border border-zinc-200 rounded-xl p-6 mb-6">
           <h2 className="text-base font-semibold text-zinc-900 mb-5">
             {editingId ? 'Edit product' : 'New product'}

@@ -23,16 +23,21 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch {
+    // If Supabase is unreachable, allow the request to continue
+    return supabaseResponse
+  }
 
   const pathname = request.nextUrl.pathname
 
-  // Rotas protegidas do admin
   const isAdminRoute = pathname.startsWith('/dashboard') ||
     pathname.startsWith('/menu') ||
     pathname.startsWith('/settings')
 
-  // Rotas protegidas do superadmin
   const isSuperadminRoute = pathname.startsWith('/tenants')
 
   if ((isAdminRoute || isSuperadminRoute) && !user) {

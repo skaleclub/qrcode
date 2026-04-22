@@ -7,9 +7,11 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog'
 interface Props {
   categories: Category[]
   tenantId: string
+  menuId: string | null
+  activeMenuName: string | null
 }
 
-export default function CategoriesClient({ categories: initial, tenantId }: Props) {
+export default function CategoriesClient({ categories: initial, tenantId, menuId, activeMenuName }: Props) {
   const [categories, setCategories] = useState(initial)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -38,7 +40,7 @@ export default function CategoriesClient({ categories: initial, tenantId }: Prop
       const res = await fetch('/api/admin/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description, position: categories.length }),
+        body: JSON.stringify({ name, description, position: categories.length, menu_id: menuId }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error); setLoading(false); return }
@@ -100,10 +102,11 @@ export default function CategoriesClient({ categories: initial, tenantId }: Prop
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">Categorias</h1>
-          <p className="text-sm text-zinc-500 mt-1">{categories.length} category(ies)</p>
+          <p className="text-sm text-zinc-500 mt-1">{categories.length} category(ies){activeMenuName ? ` · Menu: ${activeMenuName}` : ''}</p>
         </div>
         <button
           onClick={() => setShowForm(true)}
+          disabled={!menuId}
           className="bg-zinc-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
         >
           + New category
@@ -117,7 +120,13 @@ export default function CategoriesClient({ categories: initial, tenantId }: Prop
         </div>
       )}
 
-      {showForm && (
+      {!menuId && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6 text-sm text-amber-700">
+          No menu selected. Choose a menu in the sidebar to manage its categories.
+        </div>
+      )}
+
+      {showForm && menuId && (
         <div className="bg-white border border-zinc-200 rounded-xl p-6 mb-6">
           <h2 className="text-base font-semibold text-zinc-900 mb-4">
             {editingId ? 'Edit category' : 'New category'}

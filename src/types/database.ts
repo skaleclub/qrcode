@@ -52,6 +52,7 @@ export interface Profile {
 export interface Category {
   id: string
   tenant_id: string
+  menu_id: string | null
   name: string
   description: string | null
   position: number
@@ -62,6 +63,7 @@ export interface Category {
 export interface Product {
   id: string
   tenant_id: string
+  menu_id: string | null
   category_id: string | null
   name: string
   description: string | null
@@ -102,4 +104,18 @@ export interface ProductWithCategory extends Product {
 
 export interface TenantWithSettings extends Tenant {
   tenant_settings: TenantSettings | null
+}
+
+export interface Menu {
+  id: string
+  tenant_id: string
+  name: string
+  slug: string
+  description: string | null
+  language: string
+  purpose: string
+  is_active: boolean
+  is_default: boolean
+  position: number
+  created_at: string
 }

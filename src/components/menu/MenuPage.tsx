@@ -18,8 +18,9 @@ const DAYS: Record<string, string> = {
 }
 
 function getProductImages(product: Product) {
-  if (product.image_urls && product.image_urls.length > 0) return product.image_urls
-  return product.image_url ? [product.image_url] : []
+  const fromArray = (product.image_urls ?? []).map(url => url?.trim()).filter(Boolean) as string[]
+  const fromSingle = product.image_url?.trim() ? [product.image_url.trim()] : []
+  return Array.from(new Set([...fromArray, ...fromSingle]))
 }
 
 export default function MenuPage({ tenant, categories, products, footerBrand = 'XmartMenu' }: Props) {
@@ -28,6 +29,7 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [showFooterAtEnd, setShowFooterAtEnd] = useState(false)
   const [footerHeight, setFooterHeight] = useState(0)
+  const [pauseFeaturedAutoScroll, setPauseFeaturedAutoScroll] = useState(false)
   const footerRef = useRef<HTMLElement | null>(null)
   const featuredRailRef = useRef<HTMLDivElement | null>(null)
 
@@ -40,7 +42,6 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
 
   const featured = products.filter(p => p.is_featured)
   const featuredBase = featured.length === 1 ? [featured[0], featured[0], featured[0]] : featured
-  const featuredLoop = [...featuredBase, ...featuredBase]
 
   const filtered = products.filter(p => {
     const matchSearch = search === '' ||
@@ -55,7 +56,13 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
     items: filtered.filter(p => p.category_id === cat.id),
   })).filter(g => g.items.length > 0)
 
-  const uncategorized = filtered.filter(p => !p.category_id)
+  const uncategorizedCategoryRegistered = categories.some(cat => {
+    const normalized = cat.name.trim().toLowerCase()
+    return normalized === 'outros' || normalized === 'other'
+  })
+  const uncategorized = uncategorizedCategoryRegistered
+    ? filtered.filter(p => !p.category_id)
+    : []
 
   function openWhatsApp(product: Product) {
     if (!whatsapp) return
@@ -105,32 +112,29 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
   }, [hasFixedFooter, hasContact, footerBrand])
 
   useEffect(() => {
-    const enabled = featured.length > 0 && !search && !activeCategory
+    const enabled = featuredBase.length > 1 && !search && !activeCategory
     if (!enabled) return
 
     const rail = featuredRailRef.current
     if (!rail) return
 
-    let rafId = 0
-    const speed = 0.45
+    const timer = window.setInterval(() => {
+      if (pauseFeaturedAutoScroll) return
+      const card = rail.querySelector<HTMLElement>('[data-featured-card]')
+      if (!card) return
 
-    const tick = () => {
-      const halfWidth = rail.scrollWidth / 2
-      if (halfWidth > rail.clientWidth) {
-        rail.scrollLeft += speed
-        if (rail.scrollLeft >= halfWidth) {
-          rail.scrollLeft -= halfWidth
-        }
-      }
-      rafId = window.requestAnimationFrame(tick)
-    }
+      const gap = parseFloat(getComputedStyle(rail).gap || '0') || 0
+      const step = card.offsetWidth + gap
+      const maxScrollLeft = rail.scrollWidth - rail.clientWidth
+      const nextScrollLeft = rail.scrollLeft + step
+      rail.scrollTo({
+        left: nextScrollLeft >= maxScrollLeft - 2 ? 0 : nextScrollLeft,
+        behavior: 'smooth',
+      })
+    }, 2800)
 
-    rafId = window.requestAnimationFrame(tick)
-
-    return () => {
-      window.cancelAnimationFrame(rafId)
-    }
-  }, [featured.length, search, activeCategory])
+    return () => window.clearInterval(timer)
+  }, [featuredBase.length, search, activeCategory, pauseFeaturedAutoScroll])
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -208,11 +212,13 @@ export default function MenuPage({ tenant, categories, products, footerBrand = '
             <h2 className="text-base font-bold text-zinc-900 mb-3">⭐ Featured</h2>
             <div
               ref={featuredRailRef}
-              className="-mx-4 sm:-mx-6 lg:-mx-8 xl:-mx-12 px-4 sm:px-6 lg:px-8 xl:px-12 flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide [scrollbar-gutter:stable]"
+              onMouseEnter={() => setPauseFeaturedAutoScroll(true)}
+              onMouseLeave={() => setPauseFeaturedAutoScroll(false)}
+              className="-mx-4 sm:-mx-6 lg:-mx-8 xl:-mx-12 flex gap-3 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory [scrollbar-gutter:stable]"
             >
-              {featuredLoop.map((p, idx) => (
-                <button key={`${p.id}-${idx}`} onClick={() => setSelectedProduct(p)}
-                  className="flex-shrink-0 w-40 sm:w-48 lg:w-56 bg-white rounded-xl border border-zinc-200 overflow-hidden text-left hover:shadow-md transition-shadow">
+              {featuredBase.map((p, idx) => (
+                <button key={`${p.id}-${idx}`} onClick={() => setSelectedProduct(p)} data-featured-card
+                  className="flex-shrink-0 snap-start basis-[calc((100%-0.75rem)/2)] sm:basis-[calc((100%-2rem)/3)] lg:basis-[calc((100%-3rem)/4)] bg-white rounded-xl border border-zinc-200 overflow-hidden text-left hover:shadow-md transition-shadow">
                   {getProductImages(p)[0]
                     ? <img src={getProductImages(p)[0]} alt={p.name} className="w-full h-24 sm:h-28 lg:h-32 object-cover" />
                     : <div className="w-full h-24 sm:h-28 lg:h-32 bg-zinc-100 flex items-center justify-center text-3xl">🍽️</div>}
@@ -362,6 +368,10 @@ function ProductModal({ product, accentColor, currency, whatsapp, onClose, onWha
   const images = getProductImages(product)
   const [imageIndex, setImageIndex] = useState(0)
   const hasManyImages = images.length > 1
+  const touchStartXRef = useRef<number | null>(null)
+  const touchDeltaXRef = useRef(0)
+  const [touchOffsetX, setTouchOffsetX] = useState(0)
+  const [isDraggingImage, setIsDraggingImage] = useState(false)
 
   useEffect(() => {
     setImageIndex(0)
@@ -369,26 +379,69 @@ function ProductModal({ product, accentColor, currency, whatsapp, onClose, onWha
 
   const prevImage = () => setImageIndex(i => (i - 1 + images.length) % images.length)
   const nextImage = () => setImageIndex(i => (i + 1) % images.length)
+  const SWIPE_THRESHOLD = 40
+
+  function handleTouchStart(e: React.TouchEvent<HTMLDivElement>) {
+    if (!hasManyImages) return
+    touchStartXRef.current = e.touches[0]?.clientX ?? null
+    touchDeltaXRef.current = 0
+    setIsDraggingImage(true)
+    setTouchOffsetX(0)
+  }
+
+  function handleTouchMove(e: React.TouchEvent<HTMLDivElement>) {
+    if (!hasManyImages || touchStartXRef.current === null) return
+    const currentX = e.touches[0]?.clientX ?? touchStartXRef.current
+    const delta = currentX - touchStartXRef.current
+    touchDeltaXRef.current = delta
+    setTouchOffsetX(delta)
+  }
+
+  function handleTouchEnd() {
+    if (!hasManyImages) return
+    const delta = touchDeltaXRef.current
+    if (Math.abs(delta) >= SWIPE_THRESHOLD) {
+      if (delta < 0) nextImage()
+      else prevImage()
+    }
+    touchStartXRef.current = null
+    touchDeltaXRef.current = 0
+    setIsDraggingImage(false)
+    setTouchOffsetX(0)
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-0 sm:px-4" onClick={onClose}>
       <div className="bg-white w-full sm:max-w-md lg:max-w-lg rounded-t-2xl sm:rounded-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
         {images[imageIndex] && (
-          <div className="relative">
-            <img src={images[imageIndex]} alt={`${product.name} ${imageIndex + 1}`} className="w-full h-56 sm:h-64 object-cover" />
+          <div
+            className="relative"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
+          >
+            <img
+              src={images[imageIndex]}
+              alt={`${product.name} ${imageIndex + 1}`}
+              className={`w-full h-56 sm:h-64 object-cover ${isDraggingImage ? '' : 'transition-transform duration-200 ease-out'}`}
+              style={{ transform: `translateX(${touchOffsetX}px)` }}
+            />
             {hasManyImages && (
               <>
                 <button
                   onClick={prevImage}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/45 text-white w-8 h-8 rounded-full"
+                  className="absolute z-10 left-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/75 text-white w-9 h-9 rounded-full shadow-md flex items-center justify-center"
                   aria-label="Previous image"
+                  type="button"
                 >
                   ‹
                 </button>
                 <button
                   onClick={nextImage}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/45 text-white w-8 h-8 rounded-full"
+                  className="absolute z-10 right-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/75 text-white w-9 h-9 rounded-full shadow-md flex items-center justify-center"
                   aria-label="Next image"
+                  type="button"
                 >
                   ›
                 </button>

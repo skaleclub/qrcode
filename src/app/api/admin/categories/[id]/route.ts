@@ -12,10 +12,13 @@ export async function PATCH(
 
   const body = await request.json()
   const service = await createServiceClient()
+  const allowed = ['name', 'description', 'position', 'is_active']
+  const update: Record<string, unknown> = {}
+  for (const key of allowed) if (key in body) update[key] = body[key]
 
   const { data, error } = await service
     .from('categories')
-    .update(body)
+    .update(update)
     .eq('id', id)
     .eq('tenant_id', effective.tenantId)
     .select()

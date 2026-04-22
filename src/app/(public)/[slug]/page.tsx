@@ -44,20 +44,45 @@ export default async function PublicMenuPage({ params }: Props) {
 
   if (!tenant) notFound()
 
-  const [{ data: categories }, { data: products }] = await Promise.all([
-    supabase
-      .from('categories')
-      .select('*')
-      .eq('tenant_id', tenant.id)
-      .eq('is_active', true)
-      .order('position'),
-    supabase
-      .from('products')
-      .select('*')
-      .eq('tenant_id', tenant.id)
-      .eq('is_available', true)
-      .order('position'),
-  ])
+  const { data: menu } = await supabase
+    .from('menus')
+    .select('id, name')
+    .eq('tenant_id', tenant.id)
+    .eq('is_active', true)
+    .eq('is_default', true)
+    .maybeSingle()
+
+  const resolvedMenu = menu ?? (await supabase
+    .from('menus')
+    .select('id, name')
+    .eq('tenant_id', tenant.id)
+    .eq('is_active', true)
+    .order('position')
+    .limit(1)
+    .maybeSingle()).data
+
+  let categories: any[] = []
+  let products: any[] = []
+
+  if (resolvedMenu?.id) {
+    const response = await Promise.all([
+      supabase
+        .from('categories')
+        .select('*')
+        .eq('menu_id', resolvedMenu.id)
+        .eq('is_active', true)
+        .order('position'),
+      supabase
+        .from('products')
+        .select('*')
+        .eq('menu_id', resolvedMenu.id)
+        .eq('is_available', true)
+        .order('position'),
+    ])
+
+    categories = response[0].data ?? []
+    products = response[1].data ?? []
+  }
 
   // Registra scan (fire-and-forget)
   supabase.from('scan_events').insert({ tenant_id: tenant.id }).then(() => {})
@@ -65,8 +90,9 @@ export default async function PublicMenuPage({ params }: Props) {
   return (
     <MenuPage
       tenant={tenant}
-      categories={categories ?? []}
-      products={products ?? []}
+      categories={categories}
+      products={products}
+      menuName={resolvedMenu?.name}
     />
   )
 }
