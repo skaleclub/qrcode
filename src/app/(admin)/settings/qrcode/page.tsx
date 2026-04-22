@@ -9,7 +9,8 @@ import QRCodeClient from './QRCodeClient'
 export default async function QRCodePage() {
   const supabase = await createClient()
   const effective = await getEffectiveTenant()
-  const { tenantId, slug, name } = effective!
+  const { tenantId, slug, name, role } = effective!
+  const canManage = role !== 'store-staff'
   const activeMenu = await getActiveMenuForTenant(tenantId)
 
   const { data: qrcodes } = await supabase
@@ -41,6 +42,7 @@ export default async function QRCodePage() {
       menuUrl={menuUrl}
       tenantName={name}
       activeMenuName={activeMenu?.name ?? null}
+      canManage={canManage}
     />
   )
 }

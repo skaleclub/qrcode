@@ -9,6 +9,7 @@ interface Props {
   tenantId: string
   menuId: string | null
   activeMenuName: string | null
+  canManage: boolean
 }
 
 function Modal({
@@ -36,7 +37,7 @@ function Modal({
   )
 }
 
-export default function CategoriesClient({ categories: initial, tenantId, menuId, activeMenuName }: Props) {
+export default function CategoriesClient({ categories: initial, tenantId, menuId, activeMenuName, canManage }: Props) {
   const [categories, setCategories] = useState(initial)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -127,7 +128,7 @@ export default function CategoriesClient({ categories: initial, tenantId, menuId
   return (
     <div className="p-8">
       <ConfirmDialog
-        open={!!confirmId}
+        open={canManage && !!confirmId}
         title="Delete category"
         message="Delete this category? Products will not be deleted."
         onConfirm={confirmDelete}
@@ -139,18 +140,20 @@ export default function CategoriesClient({ categories: initial, tenantId, menuId
           <h1 className="text-2xl font-bold text-zinc-900">Categorias</h1>
           <p className="text-sm text-zinc-500 mt-1">{categories.length} category(ies){activeMenuName ? ` · Menu: ${activeMenuName}` : ''}</p>
         </div>
-        <button
-          onClick={() => {
-            setEditingId(null)
-            setName('')
-            setDescription('')
-            setShowForm(true)
-          }}
-          disabled={!menuId}
-          className="bg-zinc-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
-        >
-          + New category
-        </button>
+        {canManage && (
+          <button
+            onClick={() => {
+              setEditingId(null)
+              setName('')
+              setDescription('')
+              setShowForm(true)
+            }}
+            disabled={!menuId}
+            className="bg-zinc-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
+          >
+            + New category
+          </button>
+        )}
       </div>
 
       {error && (
@@ -165,8 +168,13 @@ export default function CategoriesClient({ categories: initial, tenantId, menuId
           No menu selected. Choose a menu in the sidebar to manage its categories.
         </div>
       )}
+      {!canManage && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-6 text-sm text-blue-700">
+          Staff access: view only.
+        </div>
+      )}
 
-      <Modal open={showForm && !!menuId} title={editingId ? 'Edit category' : 'New category'} onClose={cancelForm}>
+      <Modal open={canManage && showForm && !!menuId} title={editingId ? 'Edit category' : 'New category'} onClose={cancelForm}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-zinc-700 mb-1">Name *</label>
@@ -216,30 +224,38 @@ export default function CategoriesClient({ categories: initial, tenantId, menuId
                 <p className="text-sm font-semibold text-zinc-900">{cat.name}</p>
                 {cat.description && <p className="text-xs text-zinc-500 mt-0.5">{cat.description}</p>}
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => toggleActive(cat.id, cat.is_active)}
-                  className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${
-                    cat.is_active
-                      ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                      : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200'
-                  }`}
-                >
+              {canManage ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => toggleActive(cat.id, cat.is_active)}
+                    className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${
+                      cat.is_active
+                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                        : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200'
+                    }`}
+                  >
+                    {cat.is_active ? 'Active' : 'Inactive'}
+                  </button>
+                  <button
+                    onClick={() => startEdit(cat)}
+                    className="text-xs px-3 py-1 rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => setConfirmId(cat.id)}
+                    className="text-xs px-3 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ) : (
+                <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                  cat.is_active ? 'bg-green-100 text-green-700' : 'bg-zinc-100 text-zinc-500'
+                }`}>
                   {cat.is_active ? 'Active' : 'Inactive'}
-                </button>
-                <button
-                  onClick={() => startEdit(cat)}
-                  className="text-xs px-3 py-1 rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => setConfirmId(cat.id)}
-                  className="text-xs px-3 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  Delete
-                </button>
-              </div>
+                </span>
+              )}
             </div>
           ))}
         </div>

@@ -67,6 +67,7 @@ export default async function AdminLayout({
             <AdminSidebar
               tenantName={tenant.name}
               tenantSlug={tenant.slug}
+              role="superadmin"
               appName={appName}
               menus={menus ?? []}
               activeMenuId={activeMenu?.id ?? null}
@@ -93,6 +94,7 @@ export default async function AdminLayout({
       <AdminSidebar
         tenantName={profile.tenants?.name ?? 'My Restaurant'}
         tenantSlug={(profile.tenants as any)?.slug}
+        role={profile.role}
         appName={appName}
         menus={menus ?? []}
         activeMenuId={activeMenu?.id ?? null}

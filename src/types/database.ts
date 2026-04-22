@@ -46,6 +46,8 @@ export interface Profile {
   tenant_id: string | null
   role: UserRole
   full_name: string | null
+  must_change_password: boolean
+  password_changed_at: string | null
   created_at: string
 }
 

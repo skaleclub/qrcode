@@ -9,6 +9,9 @@ export async function PATCH(
   const { id } = await params
   const effective = await getEffectiveTenant()
   if (!effective) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (effective.role === 'store-staff') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const body = await request.json()
   const service = await createServiceClient()
@@ -35,6 +38,9 @@ export async function DELETE(
   const { id } = await params
   const effective = await getEffectiveTenant()
   if (!effective) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (effective.role === 'store-staff') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const service = await createServiceClient()
   const { error } = await service

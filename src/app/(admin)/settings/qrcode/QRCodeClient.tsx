@@ -11,9 +11,10 @@ interface Props {
   menuUrl: string
   tenantName: string
   activeMenuName: string | null
+  canManage: boolean
 }
 
-export default function QRCodeClient({ qrcodes: initial, tenantId, menuUrl, tenantName, activeMenuName }: Props) {
+export default function QRCodeClient({ qrcodes: initial, tenantId, menuUrl, tenantName, activeMenuName, canManage }: Props) {
   const [qrcodes, setQrcodes] = useState(initial)
   const [label, setLabel] = useState('')
   const [loading, setLoading] = useState(false)
@@ -106,24 +107,30 @@ export default function QRCodeClient({ qrcodes: initial, tenantId, menuUrl, tena
 
         {/* Gerenciar QR codes */}
         <div className="space-y-4">
-          <div className="bg-white border border-zinc-200 rounded-xl p-5">
-            <h2 className="text-sm font-semibold text-zinc-900 mb-3">Create new QR Code</h2>
-            <div className="flex gap-2">
-              <input
-                value={label}
-                onChange={e => setLabel(e.target.value)}
-                placeholder="Label (e.g. Table 1, Counter)"
-                className="flex-1 px-3 py-2 border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
-              />
-              <button
-                onClick={handleCreate}
-                disabled={loading}
-                className="bg-zinc-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-800 disabled:opacity-50 transition-colors whitespace-nowrap"
-              >
-                {loading ? '...' : '+ Create'}
-              </button>
+          {canManage ? (
+            <div className="bg-white border border-zinc-200 rounded-xl p-5">
+              <h2 className="text-sm font-semibold text-zinc-900 mb-3">Create new QR Code</h2>
+              <div className="flex gap-2">
+                <input
+                  value={label}
+                  onChange={e => setLabel(e.target.value)}
+                  placeholder="Label (e.g. Table 1, Counter)"
+                  className="flex-1 px-3 py-2 border border-zinc-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                />
+                <button
+                  onClick={handleCreate}
+                  disabled={loading}
+                  className="bg-zinc-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-800 disabled:opacity-50 transition-colors whitespace-nowrap"
+                >
+                  {loading ? '...' : '+ Create'}
+                </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700">
+              Staff access: view only.
+            </div>
+          )}
 
           <div className="bg-white border border-zinc-200 rounded-xl p-5">
             <h2 className="text-sm font-semibold text-zinc-900 mb-3">Generated QR Codes</h2>
@@ -149,13 +156,15 @@ export default function QRCodeClient({ qrcodes: initial, tenantId, menuUrl, tena
                         <span className="text-xs text-zinc-400">{qr.scans} scans</span>
                       </div>
                     </button>
-                    <button
-                      onClick={() => setDeleteId(qr.id)}
-                      className="text-zinc-400 hover:text-red-600 p-1 transition-colors"
-                      title="Delete QR Code"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
-                    </button>
+                    {canManage && (
+                      <button
+                        onClick={() => setDeleteId(qr.id)}
+                        className="text-zinc-400 hover:text-red-600 p-1 transition-colors"
+                        title="Delete QR Code"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -165,7 +174,7 @@ export default function QRCodeClient({ qrcodes: initial, tenantId, menuUrl, tena
       </div>
 
       <ConfirmDialog
-        open={!!deleteId}
+        open={canManage && !!deleteId}
         title="Delete QR Code"
         message="Are you sure you want to delete this QR Code? This action cannot be undone."
         onConfirm={handleDelete}

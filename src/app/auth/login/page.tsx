@@ -44,9 +44,14 @@ export default function LoginPage() {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, must_change_password')
       .eq('id', data.user.id)
       .single()
+
+    if (profile?.must_change_password) {
+      router.replace('/settings/password?forced=1')
+      return
+    }
 
     router.replace(profile?.role === 'superadmin' ? '/tenants' : '/dashboard')
   }

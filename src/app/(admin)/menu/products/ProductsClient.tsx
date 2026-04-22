@@ -43,6 +43,7 @@ interface Props {
   activeMenuName: string | null
   availableTags?: string[]
   currency?: string
+  canManage: boolean
 }
 
 function Modal({
@@ -70,7 +71,7 @@ function Modal({
   )
 }
 
-export default function ProductsClient({ products: initial, categories, tenantId, menuId, activeMenuName, availableTags, currency = 'BRL' }: Props) {
+export default function ProductsClient({ products: initial, categories, tenantId, menuId, activeMenuName, availableTags, currency = 'BRL', canManage }: Props) {
   const TAGS = availableTags?.length ? availableTags : DEFAULT_TAGS
   const [products, setProducts] = useState(initial)
   const [showForm, setShowForm] = useState(false)
@@ -287,7 +288,7 @@ export default function ProductsClient({ products: initial, categories, tenantId
   return (
     <div className="p-8">
       <ConfirmDialog
-        open={!!confirmId}
+        open={canManage && !!confirmId}
         title="Delete product"
         message="Delete this product? This action cannot be undone."
         onConfirm={confirmDelete}
@@ -298,18 +299,25 @@ export default function ProductsClient({ products: initial, categories, tenantId
           <h1 className="text-2xl font-bold text-zinc-900">Produtos</h1>
           <p className="text-sm text-zinc-500 mt-1">{products.length} product(s){activeMenuName ? ` · Menu: ${activeMenuName}` : ''}</p>
         </div>
-        <button
-          onClick={openCreateForm}
-          disabled={!menuId}
-          className="bg-zinc-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
-        >
-          + New product
-        </button>
+        {canManage && (
+          <button
+            onClick={openCreateForm}
+            disabled={!menuId}
+            className="bg-zinc-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
+          >
+            + New product
+          </button>
+        )}
       </div>
 
       {!menuId && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6 text-sm text-amber-700">
           No menu selected. Choose a menu in the sidebar to manage its products.
+        </div>
+      )}
+      {!canManage && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-6 text-sm text-blue-700">
+          Staff access: view only.
         </div>
       )}
 
@@ -332,7 +340,7 @@ export default function ProductsClient({ products: initial, categories, tenantId
         ))}
       </div>
 
-      <Modal open={showForm && !!menuId} title={editingId ? 'Edit product' : 'New product'} onClose={resetForm}>
+      <Modal open={canManage && showForm && !!menuId} title={editingId ? 'Edit product' : 'New product'} onClose={resetForm}>
         <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
@@ -527,30 +535,38 @@ export default function ProductsClient({ products: initial, categories, tenantId
                   <span className="text-sm font-bold text-zinc-900">{formatPrice(product.price, currency)}</span>
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button
-                  onClick={() => toggleAvailable(product.id, product.is_available)}
-                  className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${
-                    product.is_available
-                      ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                      : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200'
-                  }`}
-                >
+              {canManage ? (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => toggleAvailable(product.id, product.is_available)}
+                    className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${
+                      product.is_available
+                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                        : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200'
+                    }`}
+                  >
+                    {product.is_available ? 'Available' : 'Unavailable'}
+                  </button>
+                  <button
+                    onClick={() => startEdit(product)}
+                    className="text-xs px-3 py-1 rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => setConfirmId(product.id)}
+                    className="text-xs px-3 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ) : (
+                <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                  product.is_available ? 'bg-green-100 text-green-700' : 'bg-zinc-100 text-zinc-500'
+                }`}>
                   {product.is_available ? 'Available' : 'Unavailable'}
-                </button>
-                <button
-                  onClick={() => startEdit(product)}
-                  className="text-xs px-3 py-1 rounded-lg border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => setConfirmId(product.id)}
-                  className="text-xs px-3 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  Delete
-                </button>
-              </div>
+                </span>
+              )}
             </div>
           ))}
         </div>

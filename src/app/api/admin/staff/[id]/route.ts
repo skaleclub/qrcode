@@ -13,6 +13,9 @@ export async function DELETE(_req: Request, { params }: Props) {
 
   const effective = await getEffectiveTenant()
   if (!effective) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (effective.role !== 'store-admin' && effective.role !== 'superadmin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const service = await createServiceClient()
 

@@ -46,5 +46,36 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  if (user && (isAdminRoute || pathname.startsWith('/menus'))) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, must_change_password')
+      .eq('id', user.id)
+      .single()
+
+    const role = profile?.role
+    const mustChangePassword = profile?.must_change_password === true
+
+    if (mustChangePassword && !pathname.startsWith('/settings/password')) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/settings/password'
+      url.searchParams.set('forced', '1')
+      return NextResponse.redirect(url)
+    }
+
+    const staffBlockedRoutes = [
+      '/menus',
+      '/settings/store',
+      '/settings/branding',
+      '/settings/staff',
+    ]
+
+    if (role === 'store-staff' && staffBlockedRoutes.some((route) => pathname.startsWith(route))) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard'
+      return NextResponse.redirect(url)
+    }
+  }
+
   return supabaseResponse
 }

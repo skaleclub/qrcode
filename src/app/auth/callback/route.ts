@@ -15,7 +15,7 @@ export async function GET(request: Request) {
         const service = await createServiceClient()
         const { data: profile } = await service
           .from('profiles')
-          .select('role, tenant_id')
+          .select('role, tenant_id, must_change_password')
           .eq('id', user.id)
           .single()
 
@@ -25,6 +25,10 @@ export async function GET(request: Request) {
 
         if (profile?.role === 'customer') {
           return NextResponse.redirect(`${origin}${next}`)
+        }
+
+        if (profile?.must_change_password) {
+          return NextResponse.redirect(`${origin}/settings/password?forced=1`)
         }
 
         // Garante que o profile existe e tem role válido

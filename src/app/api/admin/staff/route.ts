@@ -8,12 +8,8 @@ async function assertStoreAdmin() {
   if (!user) return null
   const effective = await getEffectiveTenant()
   if (!effective) return null
+  if (effective.role !== 'store-admin' && effective.role !== 'superadmin') return null
   return { supabase, tenantId: effective.tenantId }
-}
-
-function generatePassword() {
-  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
-  return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
 }
 
 export async function GET() {
@@ -52,11 +48,11 @@ export async function POST(request: Request) {
   }
 
   const service = await createServiceClient()
-  const tempPassword = generatePassword()
+  const defaultStaffPassword = process.env.DEFAULT_STAFF_PASSWORD?.trim() || 'Staff@12345'
 
   const { data: userData, error: userError } = await service.auth.admin.createUser({
     email,
-    password: tempPassword,
+    password: defaultStaffPassword,
     email_confirm: true,
     user_metadata: { full_name: name.trim() },
   })
@@ -74,8 +70,10 @@ export async function POST(request: Request) {
       tenant_id: ctx.tenantId,
       role: 'store-staff',
       full_name: name.trim(),
+      must_change_password: true,
+      password_changed_at: null,
     }, { onConflict: 'id' })
   }
 
-  return NextResponse.json({ ok: true, credentials: { email, password: tempPassword } }, { status: 201 })
+  return NextResponse.json({ ok: true, credentials: { email, password: defaultStaffPassword } }, { status: 201 })
 }

@@ -26,7 +26,8 @@ export default function BrandingClient({ settings, tenantId, tenantSlug }: Props
   const [saved, setSaved] = useState(false)
 
   const supabase = createClient()
-  const publicUrl = `${process.env.NEXT_PUBLIC_APP_URL}/${tenantSlug}`
+  
+  const publicMenuUrl = `${process.env.NEXT_PUBLIC_APP_URL}/${tenantSlug}`
 
   async function handleUpload(file: File, type: 'logo' | 'banner') {
     setUploading(type)
@@ -50,7 +51,37 @@ export default function BrandingClient({ settings, tenantId, tenantSlug }: Props
     setLoading(true)
 
     const payload = { ...form, logo_url: logoUrl || null, banner_url: bannerUrl || null, tenant_id: tenantId }
-    await supabase.from('tenant_settings').upsert(payload, { onConflict: 'tenant_id' })
+    console.log('Saving payload:', payload)
+    
+    const { data: existing } = await supabase
+      .from('tenant_settings')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .maybeSingle()
+    
+    let result
+    if (existing?.id) {
+      result = await supabase
+        .from('tenant_settings')
+        .update({ ...payload, id: existing.id })
+        .eq('id', existing.id)
+        .select()
+    } else {
+      result = await supabase
+        .from('tenant_settings')
+        .insert(payload)
+        .select()
+    }
+    
+    const { data, error } = result
+    console.log('Save result:', { data, error })
+    
+    if (error) {
+      console.error('Error saving tenant settings:', error)
+      alert('Error saving: ' + error.message)
+      setLoading(false)
+      return
+    }
 
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
@@ -65,9 +96,9 @@ export default function BrandingClient({ settings, tenantId, tenantSlug }: Props
       <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4 mb-6 text-sm flex items-center justify-between">
         <div>
           <p className="text-zinc-500">Public menu link:</p>
-          <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="text-zinc-900 font-medium hover:underline">{publicUrl}</a>
+          <a href={publicMenuUrl} target="_blank" rel="noopener noreferrer" className="text-zinc-900 font-medium hover:underline">{publicMenuUrl}</a>
         </div>
-        <a href={publicUrl} target="_blank" rel="noopener noreferrer"
+        <a href={publicMenuUrl} target="_blank" rel="noopener noreferrer"
           className="text-xs px-3 py-1.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-700 transition-colors flex-shrink-0 ml-4">
           View menu
         </a>

@@ -62,6 +62,8 @@ export default function MenuPage({ tenant, categories, products, menu = null, in
   const footerRef = useRef<HTMLElement | null>(null)
   const featuredRailRef = useRef<HTMLDivElement | null>(null)
   const categoryRefs = useRef<Record<string, HTMLElement | null>>({})
+  const categoryButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const categoryFilterRef = useRef<HTMLDivElement | null>(null)
 
   const settings = tenant.tenant_settings
   const primaryColor = settings?.primary_color ?? '#000000'
@@ -132,6 +134,11 @@ export default function MenuPage({ tenant, categories, products, menu = null, in
       return
     }
 
+    const getRootMargin = () => {
+      if (typeof window === 'undefined') return '-20% 0px -60% 0px'
+      return window.innerWidth < 640 ? '-80px 0px -60% 0px' : '-20% 0px -60% 0px'
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
         const visibleEntries = entries.filter(e => e.isIntersecting)
@@ -144,7 +151,7 @@ export default function MenuPage({ tenant, categories, products, menu = null, in
         if (categoryId) setVisibleCategory(categoryId)
       },
       {
-        rootMargin: '-20% 0px -60% 0px',
+        rootMargin: getRootMargin(),
         threshold: 0,
       }
     )
@@ -156,6 +163,20 @@ export default function MenuPage({ tenant, categories, products, menu = null, in
 
     return () => observer.disconnect()
   }, [groupedByCategory, activeCategory, search])
+
+  useEffect(() => {
+    if (!visibleCategory) return
+    const button = categoryButtonRefs.current[visibleCategory]
+    const container = categoryFilterRef.current
+    if (!button || !container) return
+
+    const containerRect = container.getBoundingClientRect()
+    const buttonRect = button.getBoundingClientRect()
+
+    if (buttonRect.left < containerRect.left || buttonRect.right > containerRect.right) {
+      button.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+    }
+  }, [visibleCategory])
 
   useEffect(() => {
     if (!hasFixedFooter) {
@@ -260,9 +281,9 @@ export default function MenuPage({ tenant, categories, products, menu = null, in
 
       {/* Filtro de categorias */}
       {categories.length > 0 && (
-        <div className="sticky top-0 z-10 bg-white border-b border-zinc-200 shadow-sm">
+        <div className="sticky top-0 z-20 bg-white border-b border-zinc-200 shadow-sm supports-backdrop-blur:bg-white/95 supports-backdrop-blur:backdrop-blur-sm">
           <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
-            <div className="flex gap-2 overflow-x-auto py-3 scrollbar-hide">
+            <div ref={categoryFilterRef} className="flex gap-2 overflow-x-auto py-3 scrollbar-hide -mx-4 sm:-mx-6 lg:-mx-8 xl:-mx-12 px-4 sm:px-6 lg:px-8 xl:px-12">
               <button
                 onClick={() => setActiveCategory(null)}
                 style={!activeCategory && !visibleCategory ? { backgroundColor: primaryColor, color: '#fff' } : {}}
@@ -273,6 +294,7 @@ export default function MenuPage({ tenant, categories, products, menu = null, in
               {categories.map(cat => (
                 <button
                   key={cat.id}
+                  ref={el => { categoryButtonRefs.current[cat.id] = el }}
                   onClick={() => setActiveCategory(cat.id === activeCategory ? null : cat.id)}
                   style={activeCategory === cat.id || visibleCategory === cat.id ? { backgroundColor: primaryColor, color: '#fff' } : {}}
                   className={`flex-shrink-0 text-sm px-4 py-1.5 rounded-full font-medium transition-colors ${activeCategory === cat.id || visibleCategory === cat.id ? '' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'}`}

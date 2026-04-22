@@ -9,10 +9,11 @@ export default async function CategoriesPage() {
   const supabase = await createClient()
   const effective = await getEffectiveTenant()
   const tenantId = effective!.tenantId
+  const canManage = effective!.role !== 'store-staff'
   const activeMenu = await getActiveMenuForTenant(tenantId)
 
   if (!activeMenu) {
-    return <CategoriesClient categories={[]} tenantId={tenantId} menuId={null} activeMenuName={null} />
+    return <CategoriesClient categories={[]} tenantId={tenantId} menuId={null} activeMenuName={null} canManage={canManage} />
   }
 
   const { data: categories } = await supabase
@@ -22,5 +23,5 @@ export default async function CategoriesPage() {
     .eq('menu_id', activeMenu.id)
     .order('position')
 
-  return <CategoriesClient categories={categories ?? []} tenantId={tenantId} menuId={activeMenu.id} activeMenuName={activeMenu.name} />
+  return <CategoriesClient categories={categories ?? []} tenantId={tenantId} menuId={activeMenu.id} activeMenuName={activeMenu.name} canManage={canManage} />
 }

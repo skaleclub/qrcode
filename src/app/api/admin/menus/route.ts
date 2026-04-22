@@ -32,28 +32,32 @@ function sanitizeTranslations(translations: unknown, supportedLanguages: string[
   return out
 }
 
-async function getTenantId() {
+async function getTenantContext() {
   const effective = await getEffectiveTenant()
-  return effective?.tenantId ?? null
+  if (!effective) return null
+  return { tenantId: effective.tenantId, role: effective.role }
 }
 
 export async function GET() {
-  const tenantId = await getTenantId()
-  if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await getTenantContext()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const supabase = await createClient()
   const { data } = await supabase
     .from('menus')
     .select('*')
-    .eq('tenant_id', tenantId)
+    .eq('tenant_id', ctx.tenantId)
     .order('position')
 
   return NextResponse.json(data ?? [])
 }
 
 export async function POST(request: Request) {
-  const tenantId = await getTenantId()
-  if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await getTenantContext()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (ctx.role === 'store-staff') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const body = await request.json()
   const { name, language = 'en', supported_languages, translations, purpose = 'restaurant', description } = body
@@ -65,14 +69,14 @@ export async function POST(request: Request) {
   const supabase = await createClient()
 
   const { data: existing } = await supabase
-    .from('menus').select('id').eq('tenant_id', tenantId).eq('slug', slug).single()
+    .from('menus').select('id').eq('tenant_id', ctx.tenantId).eq('slug', slug).single()
 
   const finalSlug = existing ? `${slug}-${Date.now().toString(36)}` : slug
 
   const { data, error } = await supabase
     .from('menus')
     .insert({
-      tenant_id: tenantId,
+      tenant_id: ctx.tenantId,
       name: name.trim(),
       slug: finalSlug,
       language: i18n.language,

@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import type { Menu } from '@/types/database'
+import type { Menu, UserRole } from '@/types/database'
 
 const mainItems = [
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
@@ -28,12 +28,14 @@ type SidebarMenu = Pick<Menu, 'id' | 'name' | 'slug' | 'is_active' | 'is_default
 export default function AdminSidebar({
   tenantName,
   tenantSlug,
+  role,
   appName = 'XmartMenu',
   menus = [],
   activeMenuId = null,
 }: {
   tenantName: string
   tenantSlug?: string
+  role: UserRole
   appName?: string
   menus?: SidebarMenu[]
   activeMenuId?: string | null
@@ -45,6 +47,13 @@ export default function AdminSidebar({
   const [panelOpen, setPanelOpen] = useState(isInSettings)
   const [selectedMenuId, setSelectedMenuId] = useState<string | null>(activeMenuId)
   const [menuLoading, setMenuLoading] = useState(false)
+  const isStaff = role === 'store-staff'
+  const visibleMainItems = isStaff
+    ? mainItems.filter((item) => item.href !== '/menus')
+    : mainItems
+  const visibleAdminPanelItems = isStaff
+    ? adminPanelItems.filter((item) => item.href === '/settings/qrcode' || item.href === '/settings/password')
+    : adminPanelItems
 
   useEffect(() => {
     setSelectedMenuId(activeMenuId)
@@ -97,7 +106,7 @@ export default function AdminSidebar({
       </div>
 
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-        {mainItems.map(item => (
+        {visibleMainItems.map(item => (
           <Link
             key={item.href}
             href={item.href}
@@ -130,7 +139,7 @@ export default function AdminSidebar({
 
           {panelOpen && (
             <div className="mt-0.5 ml-3 pl-3 border-l border-zinc-200 space-y-0.5">
-              {adminPanelItems.map(item => (
+              {visibleAdminPanelItems.map(item => (
                 <Link
                   key={item.href}
                   href={item.href}

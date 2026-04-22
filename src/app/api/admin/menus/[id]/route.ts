@@ -38,13 +38,14 @@ async function assertOwnership(menuId: string) {
   const supabase = await createClient()
   const { data } = await supabase.from('menus').select('id, is_default, tenant_id').eq('id', menuId).single()
   if (!data || data.tenant_id !== effective.tenantId) return null
-  return { supabase, menu: data }
+  return { supabase, menu: data, role: effective.role }
 }
 
 export async function PATCH(request: Request, { params }: Props) {
   const { id } = await params
   const ctx = await assertOwnership(id)
   if (!ctx) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (ctx.role === 'store-staff') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await request.json()
   const allowed = ['name', 'language', 'supported_languages', 'translations', 'purpose', 'description', 'is_active', 'is_default', 'position']
@@ -78,6 +79,7 @@ export async function DELETE(_req: Request, { params }: Props) {
   const { id } = await params
   const ctx = await assertOwnership(id)
   if (!ctx) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (ctx.role === 'store-staff') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   if (ctx.menu.is_default) return NextResponse.json({ error: 'Cannot delete the default menu' }, { status: 400 })
 
   await ctx.supabase.from('menus').delete().eq('id', id)

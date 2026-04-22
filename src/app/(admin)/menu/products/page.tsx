@@ -9,6 +9,7 @@ export default async function ProductsPage() {
   const supabase = await createClient()
   const effective = await getEffectiveTenant()
   const tenantId = effective!.tenantId
+  const canManage = effective!.role !== 'store-staff'
   const activeMenu = await getActiveMenuForTenant(tenantId)
 
   if (!activeMenu) {
@@ -19,6 +20,7 @@ export default async function ProductsPage() {
         tenantId={tenantId}
         menuId={null}
         activeMenuName={null}
+        canManage={canManage}
       />
     )
   }
@@ -53,6 +55,7 @@ export default async function ProductsPage() {
       activeMenuName={activeMenu.name}
       availableTags={settings?.custom_tags ?? undefined}
       currency={settings?.currency ?? 'BRL'}
+      canManage={canManage}
     />
   )
 }

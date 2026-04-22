@@ -1,10 +1,12 @@
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import type { UserRole } from '@/types/database'
 
 interface EffectiveTenant {
   tenantId: string
   slug: string
   name: string
+  role: UserRole
 }
 
 export async function getEffectiveTenant(): Promise<EffectiveTenant | null> {
@@ -32,7 +34,7 @@ export async function getEffectiveTenant(): Promise<EffectiveTenant | null> {
       .single()
 
     if (!tenant) return null
-    return { tenantId: tenant.id, slug: tenant.slug, name: tenant.name }
+    return { tenantId: tenant.id, slug: tenant.slug, name: tenant.name, role: 'superadmin' }
   }
 
   const t = profile.tenants as any
@@ -40,5 +42,6 @@ export async function getEffectiveTenant(): Promise<EffectiveTenant | null> {
     tenantId: profile.tenant_id,
     slug: t?.slug ?? '',
     name: t?.name ?? '',
+    role: profile.role as UserRole,
   }
 }
