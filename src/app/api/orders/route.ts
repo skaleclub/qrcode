@@ -90,7 +90,15 @@ function computeOptionUnit(
 }
 
 // Ingredient delta recomputed from DB prices by ingredient_id (client unit_price
-// is ignored). Removed ingredients are free.
+// is ignored). Removed ingredients are free. Quantities are clamped to a
+// non-negative integer with a sane cap: a crafted negative/huge qty must never
+// be able to drive an item's recomputed price below 0 (→ free food) or overflow.
+const MAX_INGREDIENT_QTY = 99
+function safeIngredientQty(raw: unknown): number {
+  const n = Math.floor(Number(raw ?? 0))
+  if (!Number.isFinite(n) || n <= 0) return 0
+  return Math.min(n, MAX_INGREDIENT_QTY)
+}
 function computeIngredientDelta(
   item: OrderItem,
   prices: Map<string, { extra: number; add: number }>,
@@ -100,11 +108,11 @@ function computeIngredientDelta(
   let delta = 0
   for (const e of mods.extras ?? []) {
     const p = prices.get(e.ingredient_id)
-    if (p) delta += Number(e.qty ?? 0) * p.extra
+    if (p) delta += safeIngredientQty(e.qty) * p.extra
   }
   for (const a of mods.added ?? []) {
     const p = prices.get(a.ingredient_id)
-    if (p) delta += Number(a.qty ?? 0) * p.add
+    if (p) delta += safeIngredientQty(a.qty) * p.add
   }
   return delta
 }
@@ -194,7 +202,7 @@ export async function POST(request: Request) {
     const productIds = Array.from(new Set(items.map((i) => i.product_id)))
     const { data: dbProducts, error: productsError } = await service
       .from('products')
-      .select('id, price, tenant_id')
+      .select('id, price, tenant_id, is_available')
       .in('id', productIds)
       .eq('tenant_id', tenant_id)
 
@@ -204,6 +212,12 @@ export async function POST(request: Request) {
     }
     if (dbProducts.length !== productIds.length) {
       return NextResponse.json({ error: 'One or more products not found for this tenant' }, { status: 400 })
+    }
+    // Re-validate availability at order time: ISR menus (revalidate=60) can show a
+    // sold-out item for up to a minute, and a replayed/crafted cart must not be
+    // able to order a product the kitchen has disabled.
+    if (dbProducts.some((p) => p.is_available === false)) {
+      return NextResponse.json({ error: 'One or more items are no longer available' }, { status: 409 })
     }
     const priceById = new Map(dbProducts.map((p) => [p.id, p.price]))
 
@@ -239,16 +253,21 @@ export async function POST(request: Request) {
       ingredientPricesByProduct.set(pi.product_id, m)
     }
 
-    // SEED-019: apply price multiplier from private/in-store menu
+    // SEED-019: apply price multiplier from private/in-store menu.
+    // The multiplier is only honored when the referenced menu is active AND the
+    // caller is actually entitled to it: a private (in-store/staff) menu's
+    // multiplier must never be applied to an anonymous QR order, otherwise a
+    // customer who guesses a discounted menu's id buys everything at that price.
     let priceMultiplier = 1
     if (rawMenuId) {
       const { data: menuRow } = await service
         .from('menus')
-        .select('price_multiplier, tenant_id')
+        .select('price_multiplier, is_active, is_private')
         .eq('id', rawMenuId)
         .eq('tenant_id', tenant_id)
         .single()
-      if (menuRow?.price_multiplier && menuRow.price_multiplier > 0) {
+      const menuUsable = menuRow?.is_active !== false && (menuRow?.is_private !== true || isStaffOrder)
+      if (menuUsable && menuRow?.price_multiplier && menuRow.price_multiplier > 0) {
         priceMultiplier = Number(menuRow.price_multiplier)
       }
     }
@@ -290,7 +309,10 @@ export async function POST(request: Request) {
       }
     }
 
-    const tipCents = Math.max(0, Math.floor(Number(rawTipCents ?? 0)))
+    // Guard tip against NaN/Infinity (garbage input would poison orderTotal into
+    // NaN → an opaque 500 on insert) and cap it to a sane ceiling.
+    const rawTip = Math.floor(Number(rawTipCents ?? 0))
+    const tipCents = Number.isFinite(rawTip) ? Math.min(Math.max(0, rawTip), 1_000_000) : 0
     const orderTotal = Number((total + deliveryFeeCents / 100 + tipCents / 100).toFixed(2))
 
     const locationId = rawLocationId ?? null

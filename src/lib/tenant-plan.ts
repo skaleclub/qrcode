@@ -90,6 +90,14 @@ export async function getTenantPlan(
     return null
   }
 
+  // Only a live subscription grants access to paid features. A cancelled or
+  // past_due tenant keeps its plan record (name/prices remain visible for the
+  // billing UI and re-activation) but its features are revoked, so every gate
+  // that checks `plan.features` (isStripeEnabled, tenantHasFeature, payment
+  // creation, order gating) fails closed. Without this, a tenant that cancels
+  // keeps taking payments and using every feature indefinitely for free.
+  const isLive = subscription.status === 'active' || subscription.status === 'trial'
+
   // Resolve override pattern: NULL = use plan value, non-NULL = override
   const effectivePlan: EffectivePlan = {
     id: plan.id,
@@ -100,7 +108,7 @@ export async function getTenantPlan(
     monthly_price: subscription.override_monthly_price ?? plan.monthly_price,
     annual_price: subscription.override_annual_price ?? plan.annual_price,
     transaction_fee_pct: subscription.override_transaction_fee_pct ?? plan.transaction_fee_pct,
-    features: plan.features,
+    features: isLive ? plan.features : [],
     billing_cycle: subscription.billing_cycle,
     status: subscription.status,
     // Check if grandfathered (has override_notes indicating grandfather status)

@@ -31,9 +31,21 @@ export async function POST(request: NextRequest) {
   // Resolve target plan: explicit plan_id, else the tenant's current plan.
   const { data: sub } = await supabase
     .from('tenant_subscriptions')
-    .select('plan_id, stripe_customer_id')
+    .select('plan_id, stripe_customer_id, stripe_subscription_id, status')
     .eq('tenant_id', effective.tenantId)
     .maybeSingle()
+
+  // Guard against double billing: if the tenant already has a live Stripe
+  // subscription, a second Checkout would create a SECOND subscription that
+  // bills the card in parallel (the webhook overwrites stripe_subscription_id
+  // and the old one keeps charging with no DB record). Plan changes must go
+  // through the billing portal instead.
+  if (sub?.stripe_subscription_id && (sub.status === 'active' || sub.status === 'trial')) {
+    return NextResponse.json(
+      { error: 'You already have an active subscription. Manage or change your plan from the billing portal.' },
+      { status: 409 },
+    )
+  }
 
   const targetPlanId = requestedPlanId ?? sub?.plan_id
   if (!targetPlanId) {

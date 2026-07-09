@@ -34,13 +34,38 @@ const stripe = new Proxy({} as Stripe, {
 
 export { stripe }
 
-// Stripe charges in the smallest currency unit (cents for BRL/USD). Orders
-// store `total` as NUMERIC dollars, so every Stripe amount must go through this
-// single conversion point. Math.round avoids float drift (e.g. 19.99 * 100).
-export const STRIPE_MIN_AMOUNT_CENTS = 50 // ~R$0.50 minimum charge for BRL
+// Stripe charges in the smallest currency unit. For most currencies (BRL, USD,
+// EUR, GBP…) that is 1/100 of the major unit; a set of "zero-decimal" currencies
+// (JPY, KRW…) have no minor unit and must NOT be multiplied by 100, otherwise
+// every charge is 100x too large. Orders store `total` as a NUMERIC major-unit
+// amount, so every Stripe amount goes through this single conversion point.
+const ZERO_DECIMAL_CURRENCIES = new Set([
+  'bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw', 'mga',
+  'pyg', 'rwf', 'ugx', 'vnd', 'vuv', 'xaf', 'xof', 'xpf',
+])
 
-export function toStripeAmount(dollars: number): number {
-  return Math.round(Number(dollars) * 100)
+export function currencyMinorFactor(currency: string): number {
+  return ZERO_DECIMAL_CURRENCIES.has(currency.toLowerCase()) ? 1 : 100
+}
+
+// Convert a major-unit amount (e.g. 19.99) into Stripe's smallest unit for the
+// given currency. Math.round avoids float drift (e.g. 19.99 * 100).
+export function toStripeAmount(major: number, currency: string): number {
+  return Math.round(Number(major) * currencyMinorFactor(currency))
+}
+
+// Resolve a tenant's configured currency (menu prices are already rendered in
+// this currency, so the PaymentIntent MUST match it). Defaults to USD to align
+// with the English-first product default; falls back gracefully if unset.
+export async function getTenantCurrency(tenantId: string, client?: SupabaseClient): Promise<string> {
+  const supabase = client ?? createServiceClient()
+  const { data } = await supabase
+    .from('tenant_settings')
+    .select('currency')
+    .eq('tenant_id', tenantId)
+    .single()
+  const c = (data?.currency ?? 'usd').toString().toLowerCase()
+  return c || 'usd'
 }
 
 // Types for Stripe connection records
@@ -128,14 +153,15 @@ export interface PaymentIntentResult {
  *
  * @param params.tenantId - The tenant UUID
  * @param params.orderId - The order UUID
- * @param params.amount - Amount in cents (smallest currency unit)
- * @param params.currency - Currency code (default: 'brl')
+ * @param params.amountDollars - Order total in MAJOR currency units (e.g. 19.99)
+ * @param params.tipCents - Tip in 1/100 major units (order.tip_cents), fee-exempt
+ * @param params.currency - Currency override; defaults to the tenant's currency
  * @returns { clientSecret, paymentIntentId }
  */
 export async function createPaymentIntent(params: {
   tenantId: string
   orderId: string
-  amount: number
+  amountDollars: number
   tipCents?: number
   currency?: string
 }): Promise<PaymentIntentResult> {
@@ -159,16 +185,27 @@ export async function createPaymentIntent(params: {
     throw new Error('Payments not available on current plan')
   }
 
-  const feePct = plan.transaction_fee_pct || 0.005
-  const feeableAmount = params.amount - (params.tipCents ?? 0)
+  // Resolve the tenant's currency (charge MUST match the currency the menu was
+  // priced/displayed in) and convert amounts into Stripe's smallest unit.
+  const currency = (params.currency ?? await getTenantCurrency(params.tenantId, supabase)).toLowerCase()
+  const factor = currencyMinorFactor(currency)
+  const amount = toStripeAmount(params.amountDollars, currency)
+  // tip_cents is stored as 1/100 of the major unit; convert to the charge's
+  // minor unit so the fee-exempt tip lines up even for zero-decimal currencies.
+  const tipMinor = Math.round(((params.tipCents ?? 0) / 100) * factor)
+
+  // Use `?? 0.005` (not `|| 0.005`): a legitimately overridden 0% fee must be
+  // honored — `0 || 0.005` would silently bill a "0% transaction fee" tenant.
+  const feePct = plan.transaction_fee_pct ?? 0.005
+  const feeableAmount = amount - tipMinor
   const applicationFeeAmount = Math.floor(Math.max(0, feeableAmount) * feePct)
 
   // 3. Create PaymentIntent on tenant's connected account
   // automatic_payment_methods enables Apple Pay, Google Pay, and other wallets
   // automatically based on device/browser — no manual listing required.
   const paymentIntent = await stripe.paymentIntents.create({
-    amount: params.amount,
-    currency: params.currency || 'brl',
+    amount,
+    currency,
     application_fee_amount: applicationFeeAmount,
     automatic_payment_methods: { enabled: true },
     transfer_data: {
@@ -198,7 +235,7 @@ export async function createPaymentIntent(params: {
 export async function getOrCreatePaymentIntent(params: {
   tenantId: string
   orderId: string
-  amount: number
+  amountDollars: number
   tipCents?: number
   currency?: string
 }): Promise<PaymentIntentResult> {
@@ -211,21 +248,47 @@ export async function getOrCreatePaymentIntent(params: {
     .eq('id', params.orderId)
     .single()
 
-  if (order?.payment_intent_id) {
-    // Retrieve the existing PaymentIntent to get client secret
-    const paymentIntent = await stripe.paymentIntents.retrieve(order.payment_intent_id)
-    return {
-      clientSecret: paymentIntent.client_secret!,
-      paymentIntentId: paymentIntent.id,
+  const existingId: string | null = order?.payment_intent_id ?? null
+  if (existingId) {
+    // Reuse the existing PaymentIntent unless it was cancelled (then fall
+    // through and mint a fresh one to replace it).
+    const paymentIntent = await stripe.paymentIntents.retrieve(existingId)
+    if (paymentIntent.status !== 'canceled') {
+      return {
+        clientSecret: paymentIntent.client_secret!,
+        paymentIntentId: paymentIntent.id,
+      }
     }
   }
 
-  // Create a new PaymentIntent and persist its id, so reloading the checkout
-  // page reuses the same intent instead of creating a fresh one each render.
+  // Create a new PaymentIntent, then atomically CLAIM it on the order by only
+  // writing when payment_intent_id still holds the value we read (null, or the
+  // cancelled id we're replacing). Two concurrent checkout loads would otherwise
+  // both create a chargeable intent (and the customer could pay twice). The
+  // loser cancels its now-orphan intent and reuses the winner's.
   const result = await createPaymentIntent(params)
-  await supabase
+  const claimQuery = supabase
     .from('orders')
     .update({ payment_intent_id: result.paymentIntentId })
     .eq('id', params.orderId)
+  const { data: claimed } = await (existingId
+    ? claimQuery.eq('payment_intent_id', existingId)
+    : claimQuery.is('payment_intent_id', null)
+  ).select('id').maybeSingle()
+
+  if (!claimed) {
+    // Another request won the claim (or a cancelled intent is being replaced).
+    // Cancel ours so there is never a second confirmable intent for one order.
+    try { await stripe.paymentIntents.cancel(result.paymentIntentId) } catch { /* best-effort */ }
+    const { data: winner } = await supabase
+      .from('orders')
+      .select('payment_intent_id')
+      .eq('id', params.orderId)
+      .single()
+    if (winner?.payment_intent_id && winner.payment_intent_id !== result.paymentIntentId) {
+      const pi = await stripe.paymentIntents.retrieve(winner.payment_intent_id)
+      return { clientSecret: pi.client_secret!, paymentIntentId: pi.id }
+    }
+  }
   return result
 }

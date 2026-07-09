@@ -105,16 +105,16 @@ export default async function CheckoutPage({ params }: CheckoutPageProps) {
     )
   }
 
-  // Create or get PaymentIntent
-  // P0-03: orders.total is dollars; convert to cents for Stripe.
-  const amountCents = Math.round(Number(order.total) * 100)
+  // Create or get PaymentIntent. Amount is passed in major units and converted
+  // inside using the tenant's currency; tip_cents is forwarded so the platform
+  // fee is not charged on the customer's tip.
   let clientSecret: string
   try {
     const result = await getOrCreatePaymentIntent({
       tenantId: order.tenant_id,
       orderId: order.id,
-      amount: amountCents,
-      currency: 'brl',
+      amountDollars: Number(order.total),
+      tipCents: Number(order.tip_cents ?? 0),
     })
     clientSecret = result.clientSecret
   } catch (err) {

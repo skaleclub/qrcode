@@ -92,6 +92,7 @@ export async function POST(request: NextRequest) {
         const paymentIntent = event.data.object as {
           id: string
           amount: number
+          currency: string
           metadata: { order_id?: string; tenant_id?: string }
         }
         const orderId = paymentIntent.metadata?.order_id
@@ -112,7 +113,8 @@ export async function POST(request: NextRequest) {
           // Defense in depth: never mark an order paid for less than its total.
           // We always create the PaymentIntent with the exact order amount, so a
           // shortfall means tampering or a stale intent — block and alert.
-          const expectedCents = toStripeAmount(Number(order.total))
+          // Compare in the SAME currency the intent was charged in.
+          const expectedCents = toStripeAmount(Number(order.total), paymentIntent.currency)
           if (typeof paymentIntent.amount === 'number' && paymentIntent.amount < expectedCents) {
             captureSecurityEvent('Stripe webhook: payment amount below order total', {
               orderId,
@@ -253,41 +255,50 @@ export async function POST(request: NextRequest) {
 
         if (sub.metadata?.kind === 'plan' && tenantId) {
           // SaaS plan subscription lifecycle → mirror into tenant_subscriptions.
-          let status: 'active' | 'cancelled' | 'trial' | 'past_due' = 'active'
-          if (deleted) status = 'cancelled'
+          // Only 'active'/'trialing' grant access. incomplete / incomplete_expired
+          // / paused / unpaid must NOT map to 'active' (a paused or never-paid
+          // subscription would otherwise keep the tenant fully enabled for free).
+          let status: 'active' | 'cancelled' | 'trial' | 'past_due'
+          if (deleted || sub.status === 'canceled' || sub.status === 'incomplete_expired') status = 'cancelled'
           else if (sub.status === 'trialing') status = 'trial'
-          else if (sub.status === 'past_due' || sub.status === 'unpaid') status = 'past_due'
-          else if (sub.status === 'canceled') status = 'cancelled'
-          else status = 'active' // active / incomplete treated as active
+          else if (sub.status === 'active') status = 'active'
+          else status = 'past_due' // past_due / unpaid / incomplete / paused → not live
 
           // #3 (LIF-03): read the PRIOR plan_id BEFORE the update so we can detect
           // a plan change and tag direction. (This branch's update does not change
           // plan_id, but checkout.session.completed may have, and the
           // subscription.updated event reflects the new plan via Stripe.)
+          // Read the prior plan by tenant (one subscription row per tenant). We
+          // deliberately match on tenant_id, NOT stripe_subscription_id: Stripe
+          // does not guarantee event order, so a subscription.updated that lands
+          // before checkout.session.completed (which writes stripe_subscription_id)
+          // must still update the tenant's row instead of matching 0 rows and
+          // silently dropping period/status for the whole cycle.
           let priorPlanId: string | null = null
           if (!deleted) {
             const { data: priorSub } = await supabase
               .from('tenant_subscriptions')
               .select('plan_id')
               .eq('tenant_id', tenantId)
-              .eq('stripe_subscription_id', sub.id)
               .maybeSingle()
             priorPlanId = priorSub?.plan_id ?? null
           }
 
-          // Resolve the NEW plan_id from the Stripe subscription's first item price
-          // id → plans row. Column names per src/types/database.ts Plan interface
-          // (stripe_price_monthly_id / stripe_price_annual_id).
+          // Resolve the NEW plan_id + billing_cycle from the Stripe subscription's
+          // first item price id → plans row. Column names per src/types/database.ts
+          // Plan interface (stripe_price_monthly_id / stripe_price_annual_id).
           const newPriceId =
             (sub as { items?: { data?: Array<{ price?: { id?: string } }> } }).items?.data?.[0]?.price?.id ?? null
           let newPlanId: string | null = null
+          let newBillingCycle: 'monthly' | 'annual' | null = null
           if (!deleted && newPriceId) {
             const { data: planRow } = await supabase
               .from('plans')
-              .select('id')
+              .select('id, stripe_price_annual_id')
               .or(`stripe_price_monthly_id.eq.${newPriceId},stripe_price_annual_id.eq.${newPriceId}`)
               .maybeSingle()
             newPlanId = planRow?.id ?? null
+            if (planRow) newBillingCycle = planRow.stripe_price_annual_id === newPriceId ? 'annual' : 'monthly'
           }
 
           const { error } = await supabase
@@ -297,9 +308,13 @@ export async function POST(request: NextRequest) {
               cancel_at_period_end: sub.cancel_at_period_end ?? false,
               current_period_start: tsToIso(periodStart),
               current_period_end: tsToIso(periodEnd),
+              // Backfill the subscription id (in case this event arrived before
+              // checkout.session.completed) and keep plan/cycle in sync.
+              stripe_subscription_id: sub.id,
+              ...(newPlanId ? { plan_id: newPlanId } : {}),
+              ...(newBillingCycle ? { billing_cycle: newBillingCycle } : {}),
             })
             .eq('tenant_id', tenantId)
-            .eq('stripe_subscription_id', sub.id)
           if (error) {
             console.error('Failed to sync plan subscription:', error)
             updateResult = { success: false, error: error.message }
@@ -350,8 +365,24 @@ export async function POST(request: NextRequest) {
         // SaaS plan dunning → mark the tenant past_due. Only the plan
         // subscription stores stripe_subscription_id, so matching on it scopes
         // this to plans (chat addon invoices won't match).
-        const invoice = event.data.object as { subscription?: string | null }
-        const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : null
+        // The pinned API version (2026-04-22.dahlia, post-Basil) removed the
+        // top-level invoice.subscription field; the subscription now lives under
+        // invoice.parent.subscription_details.subscription (with a line-item
+        // fallback). Read all shapes so dunning still marks tenants past_due.
+        const invoice = event.data.object as {
+          subscription?: string | null
+          parent?: { subscription_details?: { subscription?: string | null } | null } | null
+          lines?: { data?: Array<{ parent?: { subscription_item_details?: { subscription?: string | null } | null } | null }> }
+        }
+        const lineSub = invoice.lines?.data?.find(
+          (l) => typeof l.parent?.subscription_item_details?.subscription === 'string',
+        )?.parent?.subscription_item_details?.subscription
+        const subscriptionId =
+          (typeof invoice.subscription === 'string' ? invoice.subscription : null) ??
+          (typeof invoice.parent?.subscription_details?.subscription === 'string'
+            ? invoice.parent.subscription_details.subscription
+            : null) ??
+          (typeof lineSub === 'string' ? lineSub : null)
         if (subscriptionId) {
           const { error } = await supabase
             .from('tenant_subscriptions')
