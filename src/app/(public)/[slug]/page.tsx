@@ -104,7 +104,6 @@ export default async function PublicMenuPage({ params, searchParams }: Props) {
   if ((activeLocations ?? []).length >= 2) {
     const primaryColor = (tenant.tenant_settings as any)?.primary_color ?? '#F52323'
     const accentColor = (tenant.tenant_settings as any)?.accent_color ?? '#09090b'
-    const { computePrimaryForeground } = await import('@/lib/color-utils')
     const primaryForeground = computePrimaryForeground(primaryColor)
     return (
       <>
