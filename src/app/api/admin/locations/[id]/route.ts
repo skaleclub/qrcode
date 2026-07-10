@@ -32,6 +32,27 @@ export async function PATCH(
   }
 
   const service = await createServiceClient()
+
+  // A location may only reference a menu owned by the same tenant. Without this
+  // check a store-admin could point their location at another tenant's menu id,
+  // and the public branch page would then render that tenant's products/pricing
+  // (the public read resolves the menu by id only). null clears the reference.
+  if ('menu_id' in update) {
+    const menuId = update.menu_id
+    if (menuId === null || menuId === '') {
+      update.menu_id = null
+    } else {
+      const { data: ownedMenu } = await service
+        .from('menus')
+        .select('id')
+        .eq('id', menuId as string)
+        .eq('tenant_id', effective.tenantId)
+        .maybeSingle()
+      if (!ownedMenu) {
+        return NextResponse.json({ error: 'Menu not found for this tenant' }, { status: 400 })
+      }
+    }
+  }
   const { data, error } = await service
     .from('locations')
     .update(update)

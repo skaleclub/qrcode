@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'crypto'
 import { assertSuperadmin } from '@/lib/superadmin-auth'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getStorageClient } from '@/lib/storage'
@@ -49,8 +50,13 @@ type Migration = { bucket: string; originalPath: string; webpPath: string; origi
 function isAuthorized(request: Request): boolean {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const header = request.headers.get('x-migration-key')
-  if (serviceKey && header === serviceKey) return true
-  return false
+  if (!serviceKey || !header) return false
+  // Constant-time compare so this high-value secret can't be recovered via a
+  // timing side-channel on the `===` short-circuit.
+  const a = Buffer.from(header)
+  const b = Buffer.from(serviceKey)
+  if (a.length !== b.length) return false
+  return timingSafeEqual(a, b)
 }
 
 export async function POST(request: Request) {

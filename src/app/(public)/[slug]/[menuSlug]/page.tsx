@@ -2,7 +2,8 @@ export const revalidate = 60
 
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
-import { createServiceClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { sanitizeTenantForClient } from '@/lib/tenant-public'
 import MenuPage from '@/components/menu/MenuPage'
 import ScanRecorder from '@/components/menu/ScanRecorder'
 import PrivateMenuWrapper from '@/components/menu/PrivateMenuWrapper'
@@ -112,7 +113,7 @@ export default async function PublicMenuSlugPage({ params, searchParams }: Props
     // It's a location slug — resolve its menu (custom or shared default)
     if (location.menu_id) {
       const { data: customMenu } = await supabase
-        .from('menus').select('*').eq('id', location.menu_id).eq('is_active', true).maybeSingle()
+        .from('menus').select('*').eq('id', location.menu_id).eq('tenant_id', tenant.id).eq('is_active', true).maybeSingle()
       menu = customMenu ?? null
     }
     if (!menu) {
@@ -251,9 +252,22 @@ export default async function PublicMenuSlugPage({ params, searchParams }: Props
       ])
     : null
 
+  // Private menus gate on a phone-verified session. This MUST be enforced
+  // server-side: an ISR/RSC page serializes a client component's children into
+  // the payload regardless of any client-side lock, so rendering the menu and
+  // hiding it with a client overlay leaks the full "exclusive" menu + in-store
+  // pricing to anyone who reads the response. When the caller is not
+  // authenticated we render ONLY the lock screen and never build the menu.
+  let privateAuthed = false
+  if (isPrivate) {
+    const cookieClient = await createClient()
+    const { data: { user } } = await cookieClient.auth.getUser()
+    privateAuthed = !!user?.phone
+  }
+
   const menuPageEl = (
     <MenuPage
-      tenant={tenant}
+      tenant={sanitizeTenantForClient(tenant)}
       categories={categories ?? []}
       products={displayProducts}
       menu={menu}
@@ -278,8 +292,8 @@ export default async function PublicMenuSlugPage({ params, searchParams }: Props
       {breadcrumbLd && <JsonLdScript data={breadcrumbLd} />}
       <ScanRecorder tenantId={tenant.id} />
       {isPrivate ? (
-        <PrivateMenuWrapper slug={slug} menuSlug={menuSlug} primaryColor={primaryColor}>
-          {menuPageEl}
+        <PrivateMenuWrapper slug={slug} menuSlug={menuSlug} primaryColor={primaryColor} serverAuthed={privateAuthed}>
+          {privateAuthed ? menuPageEl : null}
         </PrivateMenuWrapper>
       ) : menuPageEl}
     </>

@@ -40,6 +40,23 @@ export async function POST(request: Request) {
   const coord = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
 
   const service = await createServiceClient()
+
+  // A location may only reference a menu owned by the same tenant (see the PATCH
+  // route) — otherwise the public branch page would render another tenant's menu.
+  let resolvedMenuId: string | null = null
+  if (menu_id) {
+    const { data: ownedMenu } = await service
+      .from('menus')
+      .select('id')
+      .eq('id', menu_id)
+      .eq('tenant_id', effective.tenantId)
+      .maybeSingle()
+    if (!ownedMenu) {
+      return NextResponse.json({ error: 'Menu not found for this tenant' }, { status: 400 })
+    }
+    resolvedMenuId = ownedMenu.id
+  }
+
   const { data, error } = await service
     .from('locations')
     .insert({
@@ -50,7 +67,7 @@ export async function POST(request: Request) {
       city: city?.trim() || null,
       phone: phone?.trim() || null,
       business_hours: business_hours || null,
-      menu_id: menu_id ?? null,
+      menu_id: resolvedMenuId,
       region: region?.trim() || null,
       postal_code: postal_code?.trim() || null,
       country: country?.trim() || null,

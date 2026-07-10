@@ -3,6 +3,7 @@ export const revalidate = 60
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
+import { sanitizeTenantForClient } from '@/lib/tenant-public'
 import MenuPage from '@/components/menu/MenuPage'
 import BranchPicker from '@/components/menu/BranchPicker'
 import ScanRecorder from '@/components/menu/ScanRecorder'
@@ -217,12 +218,12 @@ export default async function PublicMenuPage({ params, searchParams }: Props) {
 
   return (
     <>
-      <style>{`:root{--primary:${primaryColor};--primary-foreground:${primaryForeground};--accent:${accentColor};}`}</style>
+      <style>{`:root{--primary:${safeCssColor(primaryColor)};--primary-foreground:${primaryForeground};--accent:${safeCssColor(accentColor)};}`}</style>
       <JsonLdScript data={localBusinessLd} />
       {menuLd && <JsonLdScript data={menuLd} />}
       <ScanRecorder tenantId={tenant.id} />
       <MenuPage
-        tenant={tenant}
+        tenant={sanitizeTenantForClient(tenant)}
         categories={categories}
         products={products}
         menu={resolvedMenu ?? null}
