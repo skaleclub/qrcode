@@ -89,6 +89,7 @@ interface OrdersClientProps {
   amberThreshold: number
   redThreshold: number
   locations?: LocationOption[]
+  currency?: string
 }
 
 function OrderCard({
@@ -99,6 +100,7 @@ function OrderCard({
   amberMinutes,
   redMinutes,
   onClick,
+  formatMoney,
 }: {
   order: OrderWithItems
   loadingId: string | null
@@ -107,6 +109,7 @@ function OrderCard({
   amberMinutes: number
   redMinutes: number
   onClick: () => void
+  formatMoney: (value: number) => string
 }) {
   const { minutes, chipClass } = useElapsedTime(order.created_at, amberMinutes, redMinutes)
   const colors = STATUS_COLORS[order.status] ?? STATUS_COLORS['pending']
@@ -193,9 +196,9 @@ function OrderCard({
       <div className="pt-6 border-t border-zinc-50 flex items-center justify-between">
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-0.5">Total</p>
-          <p className="text-xl font-black text-zinc-950 tracking-tighter">R$ {order.total.toFixed(2)}</p>
+          <p className="text-xl font-black text-zinc-950 tracking-tighter">{formatMoney(order.total)}</p>
           {(order as any).tip_cents > 0 && (
-            <p className="text-[10px] font-bold text-zinc-400">tip R$ {((order as any).tip_cents / 100).toFixed(2)}</p>
+            <p className="text-[10px] font-bold text-zinc-400">tip {formatMoney((order as any).tip_cents / 100)}</p>
           )}
         </div>
         <div className={cn("px-4 py-2 rounded-xl flex items-center gap-2 shadow-sm border", chipClass)}>
@@ -229,7 +232,16 @@ function OrderCard({
   )
 }
 
-export default function OrdersClient({ initialOrders, tenantId, amberThreshold, redThreshold, locations = [] }: OrdersClientProps) {
+export default function OrdersClient({ initialOrders, tenantId, amberThreshold, redThreshold, locations = [], currency = 'USD' }: OrdersClientProps) {
+  // Render money in the tenant's configured currency (the KDS previously
+  // hardcoded "R$" regardless of currency).
+  const fmtMoney = (value: number) => {
+    try {
+      return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value)
+    } catch {
+      return `${currency} ${value.toFixed(2)}`
+    }
+  }
   const [orders, setOrders] = useState(initialOrders)
   const [selectedOrder, setSelectedOrder] = useState<OrderWithItems | null>(null)
   const [loadingId, setLoadingId] = useState<string | null>(null)
@@ -348,8 +360,9 @@ export default function OrdersClient({ initialOrders, tenantId, amberThreshold, 
     // server-side from getEffectiveTenant — the URL no longer needs a
     // tenant_id query parameter (the route ignores it after round-1 P0-07).
     const id = setInterval(async () => {
-      const res = await fetch('/api/orders')
-      if (res.ok) {
+      try {
+        const res = await fetch('/api/orders')
+        if (!res.ok) return
         const data = await res.json()
         // Merge by id rather than replace, so an optimistic status update
         // isn't reverted if a poll lands between the PATCH and the realtime
@@ -361,6 +374,8 @@ export default function OrdersClient({ initialOrders, tenantId, amberThreshold, 
             (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
           )
         })
+      } catch {
+        // Offline / transient — the next tick retries; don't throw unhandled.
       }
     }, 15_000)
     return () => clearInterval(id)
@@ -383,11 +398,15 @@ export default function OrdersClient({ initialOrders, tenantId, amberThreshold, 
   }
 
   const filteredOrders = (() => {
+    // Never surface unpaid orders to the kitchen: a requires_payment order is
+    // inserted as 'awaiting_payment' before the customer pays and only becomes a
+    // real order once the webhook flips it to 'paid'.
+    const kitchenVisible = orders.filter((o) => o.status !== 'awaiting_payment')
     const byStatus = activeFilter === 'all'
-      ? orders
+      ? kitchenVisible
       : activeFilter === 'active'
-        ? orders.filter((o) => o.status === 'pending' || o.status === 'preparing' || o.status === 'out_for_delivery')
-        : orders.filter((o) => o.status === activeFilter)
+        ? kitchenVisible.filter((o) => o.status === 'pending' || o.status === 'preparing' || o.status === 'out_for_delivery')
+        : kitchenVisible.filter((o) => o.status === activeFilter)
     const byType = orderTypeFilter === 'all'
       ? byStatus
       : byStatus.filter((o) => (o as any).order_type === orderTypeFilter)
@@ -398,21 +417,27 @@ export default function OrdersClient({ initialOrders, tenantId, amberThreshold, 
 
   async function updateStatus(orderId: string, status: string) {
     setLoadingId(orderId)
-    const res = await fetch(`/api/orders/${orderId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ order_id: orderId, status }),
-    })
-    const data = await res.json()
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId, status }),
+      })
+      // Guard res.ok BEFORE parsing: a non-JSON 500 would otherwise throw and
+      // skip re-enabling the button, wedging it in the loading state.
+      if (!res.ok) return
+      const data = await res.json()
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? { ...o, status: data.status } : o))
       )
       if (selectedOrder?.id === orderId) {
         setSelectedOrder((prev) => prev ? { ...prev, status: data.status } : null)
       }
+    } catch {
+      // Network error — leave the order as-is; the poll/realtime will reconcile.
+    } finally {
+      setLoadingId(null)
     }
-    setLoadingId(null)
   }
 
   return (
@@ -557,6 +582,7 @@ export default function OrdersClient({ initialOrders, tenantId, amberThreshold, 
               amberMinutes={amberThreshold}
               redMinutes={redThreshold}
               onClick={() => setSelectedOrder(order)}
+              formatMoney={fmtMoney}
             />
           ))}
         </div>
@@ -597,7 +623,7 @@ export default function OrdersClient({ initialOrders, tenantId, amberThreshold, 
                         </span>
                       </td>
                       <td className="px-8 py-6">
-                        <span className="text-sm font-black text-zinc-950 tracking-tight">R$ {order.total.toFixed(2)}</span>
+                        <span className="text-sm font-black text-zinc-950 tracking-tight">{fmtMoney(order.total)}</span>
                       </td>
                       <td className="px-8 py-6">
                         <div className={cn("inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest", colors.badge)}>
@@ -692,9 +718,9 @@ export default function OrdersClient({ initialOrders, tenantId, amberThreshold, 
                   </div>
                   <div>
                     <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1.5 block">Total Value</label>
-                    <p className="text-2xl font-black text-zinc-950 tracking-tighter">R$ {selectedOrder.total.toFixed(2)}</p>
+                    <p className="text-2xl font-black text-zinc-950 tracking-tighter">{fmtMoney(selectedOrder.total)}</p>
                     {(selectedOrder as any).tip_cents > 0 && (
-                      <p className="text-xs font-bold text-zinc-500 mt-0.5">incl. tip R$ {((selectedOrder as any).tip_cents / 100).toFixed(2)}</p>
+                      <p className="text-xs font-bold text-zinc-500 mt-0.5">incl. tip {fmtMoney((selectedOrder as any).tip_cents / 100)}</p>
                     )}
                   </div>
                 </div>
@@ -720,7 +746,7 @@ export default function OrdersClient({ initialOrders, tenantId, amberThreshold, 
                           <span className="w-8 h-8 rounded-xl bg-white border border-zinc-200 flex items-center justify-center text-xs font-black text-zinc-950">{item.quantity}x</span>
                           <span className="text-base font-black text-zinc-950 tracking-tight">{item.product_name}</span>
                         </div>
-                        <span className="text-sm font-black text-zinc-950 tracking-tight">R$ {(item.unit_price * item.quantity).toFixed(2)}</span>
+                        <span className="text-sm font-black text-zinc-950 tracking-tight">{fmtMoney(item.unit_price * item.quantity)}</span>
                       </div>
                       
                       {item.notes && (

@@ -52,7 +52,9 @@ export async function updateSession(request: NextRequest, rewriteUrl?: URL) {
   }
 
   const isAdminRoute = pathname.startsWith('/dashboard') ||
-    pathname.startsWith('/menu') ||
+    pathname.startsWith('/menu') || // also covers /menus
+    pathname.startsWith('/orders') ||
+    pathname.startsWith('/chat-inbox') ||
     pathname.startsWith('/settings/')
 
   const isSuperadminRoute = pathname.startsWith('/tenants') ||

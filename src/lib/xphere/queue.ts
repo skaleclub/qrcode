@@ -109,9 +109,15 @@ export async function enqueueXphereSync(
       },
       // QStash owns retries/backoff/DLQ.
       retries: 5,
-      // 10-min QStash dedup window — collapses a Stripe retry that slips past
-      // the idempotency check into a single sync per tenant+reason.
-      deduplicationId: `xphere:${tenantId}:${reason}`,
+      // Dedup key. When an eventId is present (Stripe event.id) include it, so a
+      // genuine redelivery of the SAME event still collapses, but two DISTINCT
+      // same-reason events within the 10-min window (e.g. two plan_changes) are
+      // NOT swallowed — the previous tenant+reason-only key dropped the second,
+      // leaving the CRM stuck on the earlier plan. Producers without an eventId
+      // (onboarding/manual/backfill) keep the coarser tenant+reason dedup.
+      deduplicationId: opts?.eventId
+        ? `xphere:${tenantId}:${reason}:${opts.eventId}`
+        : `xphere:${tenantId}:${reason}`,
     })
   } catch (err) {
     // NEVER rethrow — a CRM/QStash outage must not break onboarding or flip a

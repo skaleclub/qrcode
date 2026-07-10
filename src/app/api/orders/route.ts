@@ -4,6 +4,7 @@ import { isStripeEnabled } from '@/lib/stripe'
 import { NextResponse } from 'next/server'
 import type { IngredientModifications } from '@/types/database'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { phoneMatchKey } from '@/lib/phone'
 
 interface CartEditorState {
   singleSelections?: Record<string, string>
@@ -328,6 +329,7 @@ export async function POST(request: Request) {
         tenant_id,
         customer_name: customer_name.trim(),
         customer_phone: customer_phone.trim(),
+        customer_phone_key: phoneMatchKey(customer_phone),
         status: initialStatus,
         total: orderTotal,
         order_type: orderType,

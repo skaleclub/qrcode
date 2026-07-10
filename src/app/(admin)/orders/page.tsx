@@ -20,7 +20,7 @@ export default async function OrdersPage() {
       .limit(500),
     supabase
       .from('tenant_settings')
-      .select('amber_threshold_minutes, red_threshold_minutes')
+      .select('amber_threshold_minutes, red_threshold_minutes, currency')
       .eq('tenant_id', tenantId)
       .single(),
     supabase
@@ -38,6 +38,7 @@ export default async function OrdersPage() {
       amberThreshold={settings?.amber_threshold_minutes ?? 10}
       redThreshold={settings?.red_threshold_minutes ?? 20}
       locations={locations ?? []}
+      currency={settings?.currency ?? 'USD'}
     />
   )
 }

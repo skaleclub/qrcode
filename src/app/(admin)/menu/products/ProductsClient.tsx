@@ -269,13 +269,18 @@ export default function ProductsClient({ products: initial, categories, tenantId
   }
 
   async function toggleAvailable(id: string, current: boolean) {
-    await supabase.from('products').update({ is_available: !current }).eq('id', id)
+    // Only reflect the toggle locally if the write actually succeeded — a
+    // swallowed RLS/network error would otherwise show the admin an availability
+    // state that never reached the DB (and the public menu keeps the old value).
+    const { error } = await supabase.from('products').update({ is_available: !current }).eq('id', id)
+    if (error) { setFormError(error.message); return }
     setProducts(products.map(p => p.id === id ? { ...p, is_available: !current } : p))
   }
 
   async function confirmDelete() {
     if (!confirmId) return
-    await supabase.from('products').delete().eq('id', confirmId)
+    const { error } = await supabase.from('products').delete().eq('id', confirmId)
+    if (error) { setFormError(error.message); setConfirmId(null); return }
     setProducts(products.filter(p => p.id !== confirmId))
     setConfirmId(null)
   }
