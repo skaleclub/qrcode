@@ -1,6 +1,7 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getEffectiveTenant } from '@/lib/get-effective-tenant'
+import { listAllAuthUsers } from '@/lib/admin/list-auth-users'
 import { checkPasswordChangeRequired } from '@/lib/auth/password-guard'
 
 async function assertStoreAdmin() {
@@ -30,12 +31,11 @@ export async function GET() {
     .eq('role', 'store-staff')
     .order('created_at', { ascending: false })
 
-  // P2-06 fix: one listUsers call instead of N getUserById round-trips.
+  // P2-06 fix: one paginated listUsers pass instead of N getUserById round-trips.
   const ids = new Set((data ?? []).map(p => p.id))
   const emailById = new Map<string, string>()
   if (ids.size > 0) {
-    const { data: usersPage } = await service.auth.admin.listUsers({ perPage: 1000 })
-    for (const u of usersPage?.users ?? []) {
+    for (const u of await listAllAuthUsers(service)) {
       if (ids.has(u.id) && u.email) emailById.set(u.id, u.email)
     }
   }

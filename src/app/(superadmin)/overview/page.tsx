@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { createServiceClient } from '@/lib/supabase/server'
+import { listAllAuthUsers } from '@/lib/admin/list-auth-users'
 import DashboardOverview from './DashboardOverview'
 
 export default async function OverviewPage() {
@@ -12,18 +13,17 @@ export default async function OverviewPage() {
   const [
     { data: tenants },
     { data: profiles },
-    { data: authData },
+    allUsers,
     { data: scansToday },
   ] = await Promise.all([
     service.from('tenants').select('id, name, slug, plan, is_active, created_at'),
     service.from('profiles').select('id, role, tenant_id'),
-    service.auth.admin.listUsers({ perPage: 1000 }),
+    listAllAuthUsers(service),
     service.from('scan_events').select('tenant_id').gte('scanned_at', `${todayBRT}T03:00:00.000Z`),
   ])
 
   const allTenants = tenants ?? []
   const allProfiles = profiles ?? []
-  const allUsers = authData?.users ?? []
 
   // Today's scans grouped by tenant
   const scanMap: Record<string, number> = {}

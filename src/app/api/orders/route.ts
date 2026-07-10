@@ -40,6 +40,11 @@ interface CreateOrderRequest {
   table_name?: string | null
 }
 
+// KDS query bounds (shared intent with orders/page.tsx). A kitchen board only
+// needs recent orders; older history lives elsewhere.
+const ORDERS_WINDOW_MS = 2 * 24 * 60 * 60 * 1000 // 48h
+const ORDERS_MAX_ROWS = 500
+
 function sanitizeNote(raw: string | undefined | null): string | null {
   if (!raw) return null
   const stripped = raw.replace(/[\x00-\x08\x0B-\x1F\x7F]/g, '')
@@ -385,12 +390,20 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    // Bound the result: without a window + limit this returns the tenant's ENTIRE
+    // order history (with items) on every 15s KDS poll, and PostgREST silently
+    // truncates at 1000 rows — so past ~1000 orders the KDS would show an
+    // arbitrary subset. A KDS is an operational board, so scope it to a recent
+    // window plus a hard cap (most-recent first).
     const service = await createServiceClient()
+    const cutoff = new Date(Date.now() - ORDERS_WINDOW_MS).toISOString()
     const { data: orders, error: ordersError } = await service
       .from('orders')
       .select('*, order_items(*)')
       .eq('tenant_id', effective.tenantId)
+      .gte('created_at', cutoff)
       .order('created_at', { ascending: false })
+      .limit(ORDERS_MAX_ROWS)
 
     if (ordersError) {
       console.error('orders.fetch_error', ordersError)

@@ -1,24 +1,32 @@
 export const dynamic = 'force-dynamic'
 
 import { createServiceClient } from '@/lib/supabase/server'
+import { listAllAuthUsers } from '@/lib/admin/list-auth-users'
 import TenantsClient from './TenantsClient'
 
 export default async function TenantsPage() {
   const service = await createServiceClient()
 
-  const [{ data: tenants }, { data: authData }, { data: profiles }] = await Promise.all([
+  const [{ data: tenants }, authUsers, { data: profiles }] = await Promise.all([
     service.from('tenants').select('id, name, slug, plan, is_active, created_at, tenant_settings(logo_url)').order('created_at', { ascending: false }),
-    service.auth.admin.listUsers({ perPage: 1000 }),
+    listAllAuthUsers(service),
     service.from('profiles').select('id, role, tenant_id, full_name'),
   ])
 
-  const authMap = new Map((authData?.users ?? []).map(u => [u.id, u]))
+  const authMap = new Map(authUsers.map(u => [u.id, u]))
+  // Index profiles once instead of scanning the full profiles list per tenant
+  // and per unassigned user (was O(tenants × profiles) + O(users × profiles)).
+  const profileById = new Map((profiles ?? []).map(p => [p.id, p]))
+  const adminProfileByTenant = new Map<string, NonNullable<typeof profiles>[number]>()
+  for (const p of profiles ?? []) {
+    if (p.tenant_id && (p.role === 'store-admin' || p.role === 'admin') && !adminProfileByTenant.has(p.tenant_id)) {
+      adminProfileByTenant.set(p.tenant_id, p)
+    }
+  }
 
   // Build combined list: each client = tenant + admin user
   const clients = (tenants ?? []).map(tenant => {
-    const profile = (profiles ?? []).find(
-      p => p.tenant_id === tenant.id && (p.role === 'store-admin' || p.role === 'admin')
-    )
+    const profile = adminProfileByTenant.get(tenant.id) ?? null
     const authUser = profile ? authMap.get(profile.id) : null
     return {
       id: tenant.id,
@@ -37,9 +45,9 @@ export default async function TenantsPage() {
   })
 
   // Users without a tenant, for example Google login without assignment.
-  const unassigned = (authData?.users ?? [])
+  const unassigned = authUsers
     .filter(u => {
-      const profile = (profiles ?? []).find(p => p.id === u.id)
+      const profile = profileById.get(u.id)
       return !profile?.tenant_id && profile?.role !== 'superadmin'
     })
     .map(u => ({

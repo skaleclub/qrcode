@@ -14,8 +14,12 @@ const BLOCKED_TENANT_SLUGS = new Set([
   'pt', 'en', 'legal', 'privacy', 'terms', 'contact', 'careers',
 ])
 
-const customDomainCache = new Map<string, { slug: string; expires: number }>()
+// Cache BOTH hits and misses. Without caching misses, every request carrying an
+// unknown Host header (bots hitting the raw IP, preview hosts, misconfigured
+// DNS) fires a fresh `tenants` query on the request critical path.
+const customDomainCache = new Map<string, { slug: string | null; expires: number }>()
 const CACHE_TTL_MS = 60_000
+const CACHE_MISS_TTL_MS = 30_000
 
 async function resolveTenantSlugFromHost(host: string): Promise<string | null> {
   const normalized = host.split(':')[0].toLowerCase()
@@ -40,7 +44,7 @@ async function resolveTenantSlugFromHost(host: string): Promise<string | null> {
     .single()
 
   if (!data) {
-    customDomainCache.delete(normalized)
+    customDomainCache.set(normalized, { slug: null, expires: Date.now() + CACHE_MISS_TTL_MS })
     return null
   }
 
@@ -69,12 +73,14 @@ export async function middleware(request: NextRequest) {
 
   if (host) {
     const tenantSlug = await resolveTenantSlugFromHost(host)
-    if (tenantSlug) {
+    if (tenantSlug && !pathname.startsWith(`/${tenantSlug}`)) {
       const url = request.nextUrl.clone()
-      if (!pathname.startsWith(`/${tenantSlug}`)) {
-        url.pathname = `/${tenantSlug}${pathname === '/' ? '' : pathname}`
-        return NextResponse.rewrite(url)
-      }
+      url.pathname = `/${tenantSlug}${pathname === '/' ? '' : pathname}`
+      // Rewrite AND refresh the session in one pass. Returning a bare
+      // NextResponse.rewrite() here (the old behavior) skipped updateSession, so
+      // Supabase auth cookies were never refreshed on custom-domain requests and
+      // customer sessions (e.g. /me) silently expired.
+      return await updateSession(request, url)
     }
   }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { listAllAuthUsers } from '@/lib/admin/list-auth-users'
 
 // The demo signs a visitor straight into the sample restaurant's admin panel
 // in the role of the owner. It is self-healing: on every hit it guarantees the
@@ -38,8 +39,8 @@ export async function GET(request: Request) {
     userId = created.user.id
   } else {
     // Already exists — look it up and reset the password so login always works.
-    const { data: list } = await service.auth.admin.listUsers({ page: 1, perPage: 200 })
-    const existing = list?.users.find(
+    // Paginate so the demo owner is found even past the first 200 users.
+    const existing = (await listAllAuthUsers(service)).find(
       (u) => u.email?.toLowerCase() === DEMO_EMAIL.toLowerCase(),
     )
     if (existing) {
