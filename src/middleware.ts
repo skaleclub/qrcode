@@ -63,6 +63,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // MCP server authenticates via OAuth Bearer token (not the Supabase session
+  // cookie), and its OAuth metadata is a public discovery document. Both must
+  // bypass updateSession()/getUser() AND the custom-domain host rewrite so the
+  // endpoint resolves identically on every host and is never redirected.
+  if (
+    pathname.startsWith('/api/mcp') ||
+    pathname.startsWith('/.well-known/oauth-protected-resource')
+  ) {
+    return NextResponse.next()
+  }
+
   const firstSegment = pathname.split('/')[1]
 
   if (firstSegment && BLOCKED_TENANT_SLUGS.has(firstSegment)) {
