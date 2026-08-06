@@ -29,6 +29,19 @@ const nextConfig: NextConfig = {
     formats: ['image/webp'],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
     remotePatterns: [
+      // Cloudflare R2 custom domains (active storage provider). Without these,
+      // next/image refuses to optimize R2-hosted images and they render broken.
+      {
+        protocol: 'https',
+        hostname: 'xmartmenu-tenant-assets.skale.club',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'xmartmenu-product-images.skale.club',
+        pathname: '/**',
+      },
+      // Kept for rollback and for any absolute Supabase URLs still in the DB.
       {
         protocol: 'https',
         hostname: '*.supabase.co',
