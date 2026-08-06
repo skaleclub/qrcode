@@ -1,18 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateSession } from './lib/supabase/middleware'
-
-// Named App Router routes (auth/, api/, dashboard/, menu/, settings/,
-// onboarding/, overview/, tenants/, users/, admin/, superadmin/) self-resolve
-// via the file system and never reach `[slug]` — only add slugs here that
-// have NO named file. Consistency with `RESERVED_PATHS` (which prevents new
-// tenants from registering those slugs) is intentionally NOT shared as a
-// single list: the two have opposite purposes.
-// Regression: round-1 Wave 4 (commit 533cd8b) unified the lists and broke
-// every admin/api URL with 404. Reverted in this commit.
-const BLOCKED_TENANT_SLUGS = new Set([
-  'pricing', 'features', 'about', 'faq', 'blog', 'help', 'support',
-  'pt', 'en', 'legal', 'privacy', 'terms', 'contact', 'careers',
-])
+// Zero-import module — safe for the Edge bundle. See that file for the
+// invariant (no entry may have a named route) and the regression history.
+import { BLOCKED_TENANT_SLUGS } from './lib/marketing/blocked-tenant-slugs'
 
 // Cache BOTH hits and misses. Without caching misses, every request carrying an
 // unknown Host header (bots hitting the raw IP, preview hosts, misconfigured
