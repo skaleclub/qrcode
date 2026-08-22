@@ -31,7 +31,9 @@ export async function generateMetadata(): Promise<Metadata> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://xmartmenu.skale.club'
 
   return {
-    title,
+    // Absolute: this title already carries the brand, so the root layout's
+    // '%s | XmartMenu' template must not append it a second time.
+    title: { absolute: title },
     description,
     metadataBase: new URL(appUrl),
     openGraph: {

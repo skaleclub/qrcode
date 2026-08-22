@@ -5,8 +5,9 @@ import LegalPage, { getLegalDoc, legalTitle } from '@/components/legal/LegalPage
 export const revalidate = 60
 
 export async function generateMetadata() {
-  const doc = await getLegalDoc('terms')
-  return { title: `${legalTitle('terms', doc)} | XmartMenu` }
+  // Bare title on purpose: the root layout's '%s | XmartMenu' template appends
+  // the brand, so adding it here too would double the suffix.
+  return { title: legalTitle('terms', await getLegalDoc('terms')) }
 }
 
 export default function TermsPage() {

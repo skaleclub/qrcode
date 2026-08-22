@@ -5,7 +5,7 @@ import ConsentClient from './ConsentClient'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Autorizar acesso — XmartMenu',
+  title: 'Autorizar acesso',
   robots: { index: false, follow: false },
 }
 
